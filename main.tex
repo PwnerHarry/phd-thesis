@@ -15,10 +15,10 @@
             labelfont={bf},
             textfont=it]{caption}
 \usepackage{setspace}
-\captionsetup[table]{font = {stretch=1.35}}
-\captionsetup[figure]{font = {stretch=1.35}}
-\usepackage[margin=1in]{geometry}
-\linespread{1.6}
+\captionsetup[table]{font = {stretch=1.1}}
+\captionsetup[figure]{font = {stretch=1.1}}
+\usepackage[margin=0.6in]{geometry}
+\linespread{1.2}
 \usepackage{hyperref}
 \hypersetup{colorlinks,linkcolor={blue},citecolor={blue},urlcolor={blue}}  
 \usepackage[round]{natbib}
@@ -36,7 +36,6 @@
 \usepackage{nicematrix}
 \usepackage[super]{nth}
 \usepackage{nicefrac}
-\newcommand\algoname{META}
 \usepackage{wrapfig,sidecap}
 \RequirePackage{fancyhdr}
 \usepackage{minitoc}
@@ -101,8 +100,8 @@
 {\textit{Brain-Inspired Planning for Better  Generalization in Reinforcement Learning}}\\~\\~\\
 {\large Mingde ``Harry'' Zhao, School of Computer Science \\ 
 	McGill University, Montr\'eal \\ 
-	Aug, 2025 \\~\\~\\
-	A thesis submitted to McGill University in partial fulfillment of the requirements of the degree of \\~\\ Ph.D. in Computer Science}\\~\\
+	Nov, 2025 \\~\\~\\
+	An \textbf{updated version} of the thesis submitted to McGill University in partial fulfillment of the requirements of the degree of \\~\\ Ph.D. in Computer Science}\\~\\
 }
 
 \setcounter{page}{2}\renewcommand{\thepage}{\roman{page}}
@@ -114,31 +113,31 @@
 \dominitoc
 \maketitle
 
-\begin{spacing}{1.5}
+\begin{spacing}{1.2}
 \chapter*{Abstract}
 \label{cha:engAbstract}
 \addcontentsline{toc}{chapter}{\nameref{cha:engAbstract}}
 Existing Reinforcement Learning systems encounter significant challenges when applied to real-world scenarios, primarily due to poor generalization across environments that differ from their training conditions. This thesis explores the direction of enhancing agents' zero-shot systematic generalization abilities by granting RL agents reasoning behaviors that are found to help systematic generalization in the human brain. Inspired by human conscious planning behaviors, we first introduced a top-down attention mechanism, which allows a decision-time planning agent to dynamically focus its reasoning on the most relevant aspects of the environmental state given its instantaneous intentions, a process we call ``spatial abstraction''. This approach significantly improves systematic generalization outside the training tasks. Subsequently, building on spatial abstraction, we developed the \Skipper{} framework to automatically decompose complex tasks into simpler, more manageable sub-tasks. \Skipper{} provides robustness against distributional shifts and efficacy in long-term, compositional planning by focusing on pertinent spatial and temporal elements of the environment. Finally, we identified a common failure mode and safety risk in planning agents that rely on generative models to generate state targets during planning. It is revealed that most agents blindly trust the targets they hallucinate, resulting in delusional planning behaviors. Inspired by how the human brain rejects delusional intentions, we propose learning a feasibility evaluator to enable rejecting hallucinated infeasible targets, which led to significant performance improvements in various kinds of planning agents. Finally, we suggest directions for future research, aimed at achieving general task abstraction and fully enabling abstract planning.
 \end{spacing}
 
-\begin{spacing}{1.5}
-\chapter*{Résumé}
-\label{cha:frAbstract}
-\addcontentsline{toc}{chapter}{\nameref{cha:frAbstract}}
-Les systèmes d'apprentissage par renforcement existants rencontrent des difficultés lorsqu'ils sont appliqués à des scénarios réels, principalement en raison d'une faible généralisation dans des environnements différents de leurs conditions d'entraînement. Cette thèse explore les pistes pour améliorer les capacités de généralisation systématique «zero-shot» des agents en leur conférant des comportements de raisonnement qui favorisent la généralisation systématique dans le cerveau. Inspirés par les comportements de planification consciente humaine, nous avons d'abord introduit un mécanisme d'attention descendante, qui permet à un agent de planification au moment de la décision de concentrer dynamiquement son raisonnement sur les aspects les plus pertinents de l'état environnemental compte tenu de ses intentions instantanées, un processus que nous appelons «abstraction spatiale». Cette approche améliore la généralisation systématique en dehors des tâches d'entraînement. Par la suite, en nous appuyant sur l'abstraction spatiale, nous avons développé le cadre appelé \Skipper{} pour décomposer automatiquement les tâches complexes en sous-tâches plus simples et plus faciles à gérer. \Skipper{} offre une robustesse face aux changements distributionnels et une efficacité dans la planification compositionnelle à long terme en se concentrant sur les éléments spatiaux et temporels pertinents. Enfin, nous avons identifié un mode de défaillance et un risque de sécurité courants chez les agents de planification qui s'appuient sur des modèles pour générer des cibles d'état lors de la planification. Il apparaît que la plupart des agents font aveuglément confiance aux cibles qu'ils hallucinent, ce qui entraîne des comportements de planification délirants. Inspirés par la façon dont le cerveau rejette les intentions délirantes, nous proposons l'apprentissage d'un évaluateur de faisabilité permettant de rejeter les cibles irréalisables hallucinées, ce qui a conduit à des améliorations des performances de divers types d'agents. Enfin, nous suggérons des pistes de recherche futures visant à parvenir à une abstraction générale des tâches et à permettre pleinement la planification abstraite.
-\end{spacing}
+% \begin{spacing}{1.2}
+% \chapter*{Résumé}
+% \label{cha:frAbstract}
+% \addcontentsline{toc}{chapter}{\nameref{cha:frAbstract}}
+% Les systèmes d'apprentissage par renforcement existants rencontrent des difficultés lorsqu'ils sont appliqués à des scénarios réels, principalement en raison d'une faible généralisation dans des environnements différents de leurs conditions d'entraînement. Cette thèse explore les pistes pour améliorer les capacités de généralisation systématique «zero-shot» des agents en leur conférant des comportements de raisonnement qui favorisent la généralisation systématique dans le cerveau. Inspirés par les comportements de planification consciente humaine, nous avons d'abord introduit un mécanisme d'attention descendante, qui permet à un agent de planification au moment de la décision de concentrer dynamiquement son raisonnement sur les aspects les plus pertinents de l'état environnemental compte tenu de ses intentions instantanées, un processus que nous appelons «abstraction spatiale». Cette approche améliore la généralisation systématique en dehors des tâches d'entraînement. Par la suite, en nous appuyant sur l'abstraction spatiale, nous avons développé le cadre appelé \Skipper{} pour décomposer automatiquement les tâches complexes en sous-tâches plus simples et plus faciles à gérer. \Skipper{} offre une robustesse face aux changements distributionnels et une efficacité dans la planification compositionnelle à long terme en se concentrant sur les éléments spatiaux et temporels pertinents. Enfin, nous avons identifié un mode de défaillance et un risque de sécurité courants chez les agents de planification qui s'appuient sur des modèles pour générer des cibles d'état lors de la planification. Il apparaît que la plupart des agents font aveuglément confiance aux cibles qu'ils hallucinent, ce qui entraîne des comportements de planification délirants. Inspirés par la façon dont le cerveau rejette les intentions délirantes, nous proposons l'apprentissage d'un évaluateur de faisabilité permettant de rejeter les cibles irréalisables hallucinées, ce qui a conduit à des améliorations des performances de divers types d'agents. Enfin, nous suggérons des pistes de recherche futures visant à parvenir à une abstraction générale des tâches et à permettre pleinement la planification abstraite.
+% \end{spacing}
 
 
-\chapter*{Acknowledgments}
-\label{cha:acknowledgements}
-\addcontentsline{toc}{chapter}{\nameref{cha:acknowledgements}}
-I want to thank Doina and Yoshua for funding and advising me. You taught me the importance of rigor and intuition, and will forever be my exemplars in my academic pursuits. I am very grateful to my partner Stephanie, who accompanied me and motivated me to become a better person. I also want to thank my colleagues, friends, and mentors for supporting my studies and my life, especially Ian Porada, Shuyuan Zhang, Zhen Liu, Sitao Luan, Romain Laroche, Safa Alver, Ziyu Wang, Harm van Seijen, Hongwei Ge, Zhen Wang, Liang Sun, Richard Naud, and Tristan Sylvain, who spent time and energy trying to help me improve!
+% \chapter*{Acknowledgments}
+% \label{cha:acknowledgements}
+% \addcontentsline{toc}{chapter}{\nameref{cha:acknowledgements}}
+% I want to thank Doina and Yoshua for funding and advising me. You taught me the importance of rigor and intuition, and will forever be my exemplars in my academic pursuits. I am very grateful to my partner Stephanie, who accompanied me and motivated me to become a better person. I also want to thank my colleagues, friends, and mentors for supporting my studies and my life, especially Ian Porada, Shuyuan Zhang, Zhen Liu, Sitao Luan, Romain Laroche, Safa Alver, Ziyu Wang, Harm van Seijen, Hongwei Ge, Zhen Wang, Liang Sun, Richard Naud, and Tristan Sylvain, who spent time and energy trying to help me improve!
 
-\begin{spacing}{1.5}
+\begin{spacing}{1.2}
 \tableofcontents
 \end{spacing}
 
-\begin{spacing}{1.5}
+\begin{spacing}{1.2}
 \input{chapter_0_nomenclature}
 \end{spacing}
 
@@ -148,47 +147,47 @@ I want to thank Doina and Yoshua for funding and advising me. You taught me the 
 
 %% start of mainmatter
 
-\begin{spacing}{1.5}
+\begin{spacing}{1.2}
 \input{chapter_1_intro}
 \end{spacing}
 
 \setcounter{mtc}{5}
-\begin{spacing}{1.5}
+\begin{spacing}{1.2}
 \input{chapter_2_basics}
 \end{spacing}
 
 \setcounter{mtc}{6}
-\begin{spacing}{1.5}
+\begin{spacing}{1.2}
 \input{chapter_3_preliminary}
 \end{spacing}
 
 \setcounter{mtc}{7}
-\begin{spacing}{1.5}
+\begin{spacing}{1.2}
 \input{chapter_4_CP}
 \end{spacing}
 
 \setcounter{mtc}{8}
-\begin{spacing}{1.5}
+\begin{spacing}{1.2}
 \input{chapter_5_Skipper_main}
 \end{spacing}
 
 \setcounter{mtc}{9}
-\begin{spacing}{1.5}
+\begin{spacing}{1.2}
 \input{chapter_6_Delusions}
 \end{spacing}
 
 \setcounter{mtc}{10}
-\begin{spacing}{1.5}
+\begin{spacing}{1.2}
 \input{chapter_7_conclusion}
 \end{spacing}
 
-\begin{spacing}{1.5}
+\begin{spacing}{1.0}
 \bibliography{references}
 \bibliographystyle{abbrvnat}
 \end{spacing}
 
 \setcounter{mtc}{11}
-\begin{spacing}{1.5}
+\begin{spacing}{1.2}
 \input{chapter_8_appendices}
 \end{spacing}
 
