@@ -1,0 +1,142 @@
+\chapter{Discussions: Conclusions, Limitations \& Future Work}
+\label{cha:conclusion}
+%\textit{Above and beyond.}
+{\small
+In this chapter we re-iterate the contributions of the thesis, discuss the limitations of the work and avenues for future research.
+}
+
+\minitoc
+
+\section{Summary of Contributions}
+This thesis explores brain-inspired model-based deep RL agents capable of effectively generalizing their learned skills to new, target application environments. Our research argues that the difficulties of generalization stem from the absence of appropriate reasoning abilities, which are necessary for agents to adapt to novel situations \citep{daniel2017thinking}. To address this, we introduced components inspired by higher cognitive functions involved in human conscious planning, significantly enhancing the agents' zero-shot OOD generalization capabilities \citep{sylvain2019locality}. Furthermore, we examined the formation of delusional behaviors in Target-Assisted Planning (TAP) agents, by leveraging insights from the human brain \citep{kiran2009understanding}.
+
+The contributions of the thesis work clearly met the research objectives set before the start of my doctoral study.
+
+We now revisit the main original contributions of this thesis and the implication of the findings.
+
+\subsection{\nameref{cha:CP}}
+\label{sec:contrib_CP}
+
+Chap.~\ref{cha:CP} aimed to address the problem of unsatisfactory generalization in the skills learned by existing RL agents, which are often sensitive to environmental perturbations and OOD problem changes \citep{ada2024diffusion}. To tackle this, we designed a decision-time planning agent capable of dynamically focusing on the most relevant aspects of the state, thereby enhancing OOD generalization - making the first such contribution in the literature at the time when the work was carried out. The agent learns to dynamically focus on relevant (partial) aspects of the state during reasoning, while ignoring irrelevant environmental distractors that might hinder the generalization of its learned skills. Drawing inspiration from conscious decision-making behaviors in humans \citep{baars1993cognitive,baars2002conscious,dehane2017consciousness}, we implemented this bottleneck mechanism using top-down semi-hard attention (Sec.~\ref{sec:CP_bottleneck}), and developed a comprehensive system of DRL architectures supported by set-based representations, end-to-end learning, and tree search with Model Predictive Control (MPC). Finished in late 2020, this work was among the first to introduce transformer-based architectures for computational decision-making. In our generalization-focused experimental settings, the proposed bottleneck mechanism enables the agent to selectively focus its computational resources on relevant objects for planning, leading to a significant improvement in OOD performance. This work sparked discussions on how knowledge of human higher-level cognitive functions can be leveraged to enhance the generalization capabilities of computational decision-making systems. The benefits of the focused reasoning induced by the bottleneck algorithm allow CP to generalize better and this probably applies to other learning systems as well.
+
+
+This work also made some specific original contributions:
+
+\begin{itemize}[leftmargin=*]
+\item \textbf{Set-Based / Object-Oriented Dynamics Model \& Other RL Components}: To the best of our knowledge, at the time the preprint of this project was published on \url{arxiv.org}, we were the first to successfully implement a set-based (object-oriented) latent space dynamics model for decision-time planning that was trained end-to-end without relying on a reconstruction signal. We developed a robust and effective design that has since been widely acknowledged and adopted, inspiring subsequent methods. Specifically, we addressed the ``alignment problem'', where positional encoding and object features can create confusion when matching estimates to training targets. Traditionally, this problem was tackled using matching losses, which often resulted in suboptimal performance while incurring significant computational cost. We overcame this challenge by designing an object representation that explicitly separates the dimensions of features and positional encodings. This design allows positional encodings to remain fixed during training, enabling them to be used for matching objects between the estimated set and the update target set. As a result, we could use simple losses, such as $L_2$, for effective training (Sec.~\ref{sec:CP_model_alignment}). Additionally, we developed an entire  architecture capable of conducting set-based RL end-to-end, including set-based state representation encoder, set-based value estimator, \etc{}.
+
+\item \textbf{Spatial Abstraction - Top-Down Semi-Hard Attention Bottleneck}: The most significant contribution of this work is the successful implementation of a top-down attention-based bottleneck component that restricts the agent's reasoning abilities to a limited set of object slots (Sec.~\ref{sec:CP_bottleneck}). The dynamic selection of a subset of objects within the state set is conditioned on the agent's intention during the tree search of decision-time planning, as well as the relationships between the objects in the state. The use of semi-hard attention enabled backpropagation through a hard-selected continuous bottleneck, circumventing the numerical challenges associated with a fully hard attention bottleneck, where gradients cannot flow directly. Our insights into consciousness in the first sense guided the design of this bottleneck to facilitate generalization, and we successfully integrated this feature into RL \citep{dehane2017consciousness}.
+
+\item \textbf{Using Multiple Predictive Losses to Enhance Set-based State Representations}: One key design of the agent is that all the training loss terms collectively shape the state representation (Sec.~\ref{sec:CP_training}), a concept traditionally applied to vectorized state representations but not to set-based representations. Our approach aimed to make the state representation capable of predicting values, reward transitions, terminal state status, and latent state dynamics, all at the same time, using all losses to numerically regulate each other. We validated this methodology and, in the process, discovered that KL-divergences, when used as loss terms, tend to balance each other due to their shared value ranges.
+\end{itemize}
+
+\subsection{\nameref{cha:skipper}}
+\label{sec:contrib_skipper}
+
+Chap.~\ref{cha:skipper} aimed to push the boundaries of existing decision-time planning methods, enabling them to plan in a way that is both spatially and temporally abstract — similar to how conscious planning in the human brain spans sparse decision points and focuses on relevant aspects of environmental states \citep{dehane2017consciousness,bengio2017consciousness}. To achieve this, we developed a framework called \Skipper{}, which automatically decomposes an overall task into smaller, more manageable steps by leveraging abstractions in both the temporal and spatial dimensions. \Skipper{} employs a constrained form of option-based planning, building on the consciousness-inspired spatial abstraction mechanisms discussed in Chap.~\ref{cha:CP}, particularly when considering each decomposed step (Sec.~\ref{sec:skipper_spatial_abstraction}). The option-based planning in \Skipper{} is conducted over proxy problems, a constrained form of SMDP for learning a problem decomposition of an overall MDP that aligns with the agent's capability to handle each decomposed step during the divide-and-conquer of the given task. Furthermore, we proved that the framework's performance on proxy problems is guaranteed under assumptions that are achievable in practice. This work demonstrates that spatially and temporally abstract planning is not only feasible, but also has performance guarantees, offering a promising direction for option-based planning. A clever way of blending spatio-temporal abstractions is probably a common need for learning systems that seek to tackle complex tasks.
+
+%During the course of this project, we also gained insights into how delusions could potentially influence the behaviors of similar agents, leading to our subsequent work on delusions in goal-conditioned planning agents, as presented in Chap.~\ref{cha:delusions} (Page.~\pageref{cha:delusions}).
+
+Specific technical contributions are as follows:
+
+\begin{itemize}[leftmargin=*]
+\item \textbf{Proxy Problems to Divide-and-Conquer}: We proposed proxy problems, a constrained form of SMDP, tailored for goal-conditioned planning (Sec.~\ref{sec:skipper_proxy_problem}). We demonstrated that, given a set of checkpoints (a subset of the state space), proxy problems can be used to decompose a complex task into smaller, more manageable steps. Under appropriate assumptions, we proved that, as long as certain values can be estimated, proxy problems can enable optimal decision-making, providing a performance guarantee for planning agents that use them. Proxy problems anchor the \Skipper{} framework in principled theory, thus distinguishing it from heuristic-based methods in temporally-abstracted reasoning.
+
+\item \textbf{Per-Sample TD-based Learning Rules Converging to Quantities Needed for Proxy Problems}: We designed learning rules that provably enable the agent to learn the essential values for optimal decision-making in proxy problems (Sec.~\ref{sec:skipper_update_rules}). Additionally, we introduced a simple and general technique that allows an agent to interchangeably estimate the distribution of distances and cumulative discount between states, using C51-style distributional learning \citep{bellemare2017distributional}. These learning rules obey the technical assumptions regarding estimation accuracy for decision-making with proxy problems.
+
+\item \textbf{Extending Spatial Abstraction to Convolutional Features}: We extended the spatial abstraction mechanism proposed in Sec.~\ref{sec:CP_bottleneck} to feature maps learned with Convolutional Neural Networks (CNNs)~\citep{lecun1989backpropagation}, making the approach much more generally applicable (Sec.~\ref{sec:skipper_spatial_abstraction}).
+
+\item \textbf{Context-Aware Conditional Goal Generator
+}: We proposed a training loss for the goal generator that optimizes an alternative Evidence Lower BOund (ELBO) to produce goals that are likely to occur within the same episode, given the context of the current state (Sec.~\ref{sec:skipper_generator}). Compared to predictive models that are widely used in model-based RL, this generator directly proposes goals that be arbitrarily far away from the current state. The generator thus serves as the source for the vertices of proxy problems.
+\end{itemize}
+
+\subsection{\nameref{cha:delusions}}
+\label{sec:contrib_delusions}
+
+Chap.~\ref{cha:delusions} proposes a novel perspective from human psychiatry to analyze a common issue faced by TAP agents, planning agents that use generative models to sample state targets during planning: their tendency to be confused by hallucinated state targets, which undermines their performance and poses safety risks \citep{bengio2024managing}. This perspective allowed us to identify the causes of delusional behaviors shared by seemingly different kinds of planning agents and to unify them in one framework, enabling a solution that resembles the coordination between the belief formation and evaluation systems in human psychopathology \citep{kiran2009understanding}. We then proposed a combination of update rules, architecture, and hindsight relabeling strategy to enable learning an add-on feasibility evaluator that can reject proposed targets when they are not trustworthy, \ie{}, when they are a result of hallucination. After applying the proposed add-on feasibility evaluator to existing agents, we observed a significant reduction in delusional planning behaviors in several types of planning agents, leading to significant improvements in performance. Being able to understand that certain plans are off-limits may be a necessity for any agentic AI composed of learning systems.
+
+More specifically, we make the following technical contributions:
+
+\begin{itemize}[leftmargin=*]
+\item \textbf{TAP Framework}: We abstract seemingly different kinds of existing planning methods that generate state targets into a single framework, Target-Assisted Planning (TAP), whose difficulties in dealing with hallucinations can be addressed with a unified solution. The two key components in TAP agents, the generator, and the evaluator, directly correspond to the belief formation and belief evaluation systems in the human brain, whose coordination is responsible to addressing delusions (Sec.~\ref{sec:target_directed_framework}). The TAP framework allows us to clearly highlight the problem of delusional planning behaviors in related RL methods, identify its causes, and propose an effective mitigation strategy: when a state target is a result of hallucination, its evaluation will not be trustworthy, and thus it should be rejected.
+
+\item \textbf{Categorization of Hallucinations}:
+Using the TAP framework, by incorporating a temporally-aware perspective, we differentiated two types of hallucinated states that TAP agents are prone to pursue: the permanently unreachable target states and the temporarily unreachable target states (Sec.~\ref{sec:problematic_targets}). We then used this insight to analyze the more general case, where targets corresponds to sets of states.
+
+\item \textbf{Strategy of Rejecting Hallucinations}: 
+Inspired by the belief evaluation system in the brain, we proposed to learn a feasibility evaluator, which acts as a firewall to reject  targets hallucinated by the generative model in TAP agents. We carefully examined the challenges of learning such an evaluator and proposed a solution that is robust against feasibility delusions. This solution can be directly applied to existing TAP agents as an add-on without the need of changing the baseline RL methods. We systematically validated that our proposed solution leads to a significant reduction in delusional planning behaviors and improved empirical performance of various planning agents (Sec.~\ref{sec:delusions_exp}).
+\end{itemize}
+
+Having discussed the contributions to original knowledge made in this thesis, we now turn to a discussion of the limitations of the  work.
+
+\section{Limitations}
+DRL research is still significantly hindered by the sensitivity of existing methods. This thesis aimed to improve generalization in DRL, while simultaneously being shaped by the very challenges it sought to address.
+
+Although the research in this thesis primarily focuses on improving the generalization of RL agents to make them more applicable in the real world, a common limitation of the works presented here is that the experiments are somewhat limited in scope. For the sake of experimental rigor, we concentrated on demonstrating our claims using agents with simple neural network architectures in minimalist, carefully controlled environments. These results would be more compelling and impactful if we could extend our experiments to widely-used simulated benchmark suites, such as ProcGen \citep{cobbe2019procgen}, or, ideally, real-world tasks. However, our efforts in this direction have been hindered by the fact that this research area is still under-explored, making it difficult to identify appropriate baseline methods and experimental settings to validate our ideas convincingly and that such experiments would require computational resources not at our disposal. The primary object of study in the thesis is inductive bias, which is always a tradeoff of effectiveness in some problems for ineffectiveness in others. While our proposed components / framework could be useful for dynamics-consistent zero-shot OOD generalization tasks, OOD challenges are way more vast than being dynamics-consistent: our methods will not be applicable to those distributional shifts with inconsistent / unknown local dynamics. These more difficult OOD challenges would likely require online fusion of learned skills and these possibilities expose areas for future study. Additionally, the thesis argues that decision-time planning is more suited to task generalization than background planning. However, it is also arguably more susceptible to model error or misspecification. I acknowledge this because we did not claim to have found a cure-all.
+
+I will now discuss the limitations of each project in detail.
+
+\subsection{Limitations of Work on Conscious Planning (Chap.~\ref{cha:CP})}
+\label{sec:limitations_CP}
+
+The conscious planning work presented in Chap.~\ref{cha:CP} served as a proof-of-concept of an interesting research direction: System-2 DRL. Despite its significant novelty and the usefulness of the core top-down semi-hard attention bottleneck, the approach has several limitations:
+
+\begin{itemize}[leftmargin=*]
+\item
+Although, in this project, a form of spatial abstraction is achieved with each search step in planning, the proposed agent still plans over the most atomic timesteps. Thus, as the search depth increases, not only does the number of search nodes grow exponentially, but so does the accumulation of errors due to imperfections in the learned models \citep{janner2019trust}. This approach has limited long-term potential because even a comprehensive model that predicts the environment in great detail would struggle, given the search demands required for longer-term planning, which can be further exacerbated by stochasticity in the environment. Incorporating temporally abstract actions, such as options, could help mitigate this problem. While promising, introducing temporal abstraction into model-based RL is a non-trivial task that requires careful investigation. We committed to exploring this challenge in Skipper (Chap.~\ref{cha:skipper}). We also investigated how to deal with imperfect models and hallucinated state targets, and proposed a generic solution in Chap.~\ref{cha:delusions}.
+
+\item
+During experimentation, we found that the constant per-step replanning used by the agents imposed significant computational burdens. This suggests that constant replanning may be prohibitive in environments that require rapid reaction, particularly when using a computationally expensive set-based transition model. A more efficient planning strategy could involve controlling when and where the agent performs replanning, potentially by estimating uncertainty. We addressed this challenge in Chap.~\ref{cha:skipper}, where temporally abstract planning requires only sparse replanning, triggered either by a timeout or when a target checkpoint is achieved.
+
+\item
+The set-based dynamics model is not yet capable of learning stochastic dynamics. Since the environments in Sec.~\ref{sec:CP_experiments} are fully deterministic, we did not extend the design to account for stochasticity. The challenge lies in implementing a latent sample space for an end-to-end trainable set-to-set framework. My intuition is that this can be done via variational approaches \citep{kingma2013auto}.
+\end{itemize}
+
+Recent years, the newly developed methods of learning a discrete bottleneck has given me more inspirations on approaching this project differently, which I would leave for my future research.
+
+\subsection{Limitations of Work on \Skipper{} (Chap.~\ref{cha:skipper})}
+\label{sec:limitations_skipper}
+
+Although the spatio-temporal abstractions used in \Skipper{} offer clear advantages and represent a step closer to human-like planning, \Skipper{} is still undeniably distant from the level of conscious planning exhibited by humans. In my view, there are two major limitations of the current \Skipper{} framework.
+
+\begin{itemize}[leftmargin=*]
+\item
+\textbf{Planning without Task-Awareness}: While the planning process is spatially and temporally abstract, it is not task-informed. Specifically, future checkpoints are generated randomly by sampling from the partial description space. Despite post-processing steps such as pruning, these checkpoints do not prioritize the most predictable or important states, which are critical for forming a meaningful long-term plan. To plan as efficiently as humans, reasoning agents need to be able to decompose tasks into abstract, task-specific steps.
+
+\item
+\textbf{Planning with States}: The framework relies on proxy problems that operate at the state level. In contrast, human planning does not focus on detailed states but rather on high-level transitions or changes in state, often over partial or evolving states. We will discuss this point more in Sec.~\ref{sec:future_work}.
+\end{itemize}
+
+Additionally, there are several technical limitations in the proposed framework:
+
+\begin{itemize}[leftmargin=*]
+\item
+\textbf{Continuous State Spaces \& Partial Observability}: The current implementation of \Skipper{} is designed for fully observable tasks with discrete state and action spaces. We adopted this minimalist approach to isolate challenges unrelated to the core idea of this work. \Skipper{} is naturally compatible with continuous action spaces, and the only modification required is replacing the baseline agent with one that supports continuous actions, such as TD3 \citep{fujimoto2018addressing}. However, when it comes to continuous state spaces, identifying when a checkpoint has been reached becomes more challenging. Specifically, the agent may never exactly fulfill a target checkpoint, which requires us to either use a distance metric to approximate state equivalence or to rely on the equivalence of partial descriptions (as implemented in the current version). Our current implementation sets the partial descriptions as bundles of binary variables, allowing for quick and straightforward comparison across any state space. However, we know that the overwhelming amount of states will pose a tremendous challenge for this design, because each instantiation of a partial description can correspond to a huge set of states. Regarding partial observability, although the current implementation does not incorporate a recurrent mechanism, the framework is compatible with such an approach. Handling partial observability would require augmenting the state encoder with recurrent or memory-based mechanisms, and ensuring the checkpoint generator works directly with the learned state representations. We acknowledge that future work is needed to evaluate \Skipper{}'s performance on popular partially observable benchmark suites, which would require incorporating components to handle partial observability and scaling up the architecture for greater expressive power.
+
+\item
+\textbf{More Intuitive Theory Boundary}: We do not know the precise boundaries of the  proxy problems theory, since it only indicates performance guarantees based on a condition of estimation accuracy, which in turn does not correspond trivially to a set of well-defined problems. We should explore, outside the scope of sparse-reward navigation, how this approach can be used to facilitate better generalization, and at the same time, try to find more powerful theoretical results that can guide us better.
+\end{itemize}
+
+\subsection{Limitations of Work on Rejecting Hallucinations (Chap.~\ref{cha:delusions})}
+\label{sec:limitations_delusions}
+
+The limitations of the work presented in Chap.~\ref{cha:delusions} primarily lie in the experiments. If possible, we would like to test our proposed feasibility evaluator on a wider range of TAP methods in more diverse  environments, which could demonstrate the benefits of addressing delusional planning behaviors more convincingly. Additionally, our experiments focused on gridworld environments, while we would like to verify the performance gain on environments with more complex features.
+
+Some other planning agents propose ``targets'' that do not directly correspond to reaching sets of states, but instead,  maximize certain signals without verifying if they reached the proposed targets, \ie{}, without providing $h$ (defined in Sec.~\ref{sec:target_directed_framework}). We would like to investigate such agents in future work, to understand how they are impacted by hallucinations.
+
+\section{Future Work}
+\label{sec:future_work}
+
+Abstractions are essential  for effective and efficient reasoning. This means that an agent must learn and reason at appropriate levels of detail, recognizing which aspects of the task are important and which are not, both spatially and temporally, as discussed in Chap.~\ref{cha:skipper}.
+
+Humans can decompose complex tasks into abstract steps that are topologically sorted, encompassing spatio-temporal abstractions that are inherently task-aware. My goal is to enable RL agents to reason similarly.
+
+From a traditional RL perspective, understanding how a computational agent could achieve abstract planning behavior is critical for studying decision-making, as it could help avoid the challenges associated with reasoning over excessive details, among other issues. In essence, this approach shifts the difficulty of learning accurate models to discovering crucial events, \ie{}, the robustness of the agent’s models can be improved if the abstract space in which the agent plans is well-constructed.
+
+For future work, I aim to develop decision-making agents that make abstract plans based on partial changes in states, mimicking human reasoning. When planning a trip to Paris, for instance, experienced humans can easily break down the task into abstract steps without needing to reconstruct all the environmental details. A rough decomposition of the task might include abstract steps such as buying flight tickets, booking hotels, \etc{}. Each of these steps represents a partial change to the state, without the need to consider irrelevant details. For example, one does not need to think about what to have for dinner when planning these steps, and the states corresponding to completing each step can be infinite. The ability to discover and reason with partial information within an efficient abstract planning space allows humans to plan effectively for the future and generalize OOD.
+
+In pursuit of this behavior, I propose that MBRL agents should reason in a space of abstract situations and events, focusing on sets of states defined by partial descriptions and their changes. This space should be discovered by the agent autonomously by trial-and-error.
+
+For over a year now, I have been working on implementing this formulation, which includes abstract planning behaviors based on partial changes in states over extended periods of time. I am currently investigating how a generic credit-assignment mechanism could guide abstract planning.
+
+\textbf{\textit{This is the end of the main parts of this thesis. Thank you very much for reading.}}

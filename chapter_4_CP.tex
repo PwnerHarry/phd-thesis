@@ -1,0 +1,567 @@
+\chapter{Conscious Planning: Spatially-Abstract Decision-Time Reasoning}
+\label{cha:CP}
+
+{\small
+Some materials of this chapter had been used to form \citet{zhao2021consciousness}, which was published as a short-form conference paper in Conference on Neural Information Processing Systems (NeurIPS), 2021. % \textit{Following the McGill's guidelines on traditional thesis, this chapter is NOT in the form of a manuscript and focuses on the complete presentation of methodology and findings of the corresponding thesis research milestone, which is different from \citet{zhao2021consciousness}. Comprehensive discussions of contributions, limitations, encompassing all methodologies and findings of all thesis milestones will be conducted in Chap.~\ref{cha:conclusion}.}
+}
+
+\minitoc
+
+\section{Overview of This Thesis Milestone}
+\label{sec:CP_intro}
+
+\textit{We present an end-to-end, model-based deep RL agent that dynamically attends to relevant parts of the environment during its decision-time planning. The agent uses a top-down attention based bottleneck mechanism over a set-based (object-oriented) state representation to limit the number of entities considered during planning. In experiments, we investigate the bottleneck-equipped agent with several sets of customized environments featuring different challenges. We consistently observe that the design allows the planning agents to better generalize their learned task-solving abilities in compatible unseen environments by attending to the relevant objects, leading to better out-of-distribution generalization performance.}
+
+Whether when humans plan our paths home from the offices or from a hotel to an airport, we typically focus on a small subset of relevant variables, \eg{}, the change in position or the presence of traffic. An interesting hypothesis of how this path planning skill generalizes across scenarios is that it is based on computation associated with the conscious processing of information \citep{baars1993cognitive}. Conscious attention focuses on a few necessary environment elements, with the help of an internal abstract representation of the world \citep{vangulick2004consciousness}. This behavioral pattern, also known as consciousness in the \nth{1} sense (C1) \citep{dehane2017consciousness}, was theorized to be the foundation of humans' exceptional adaptability and learning efficiency \citep{baars2002conscious}. A central characterization of conscious processing is that it involves a computational \textbf{bottleneck}, which forces the human brain to handle dependencies among only limited few environmental characteristics at a time. Though focusing on a subset of the available information may seem limited, such limitation counterintuitively facilitates generalization abilities to situations where the ignored variables are different and irrelevant \citep{bengio2017consciousness,goyal2022inductive}.
+
+In this project, we (the collaborators and I) introduce these ideas into RL, as most of the big successes of RL have been obtained by deep, model-free agents \citep{mnih2015human,silver2016mastering,silver2017mastering}. While model-based RL has generated significant research due to the potentials of using an extra model \citep{moerland2020model}, its empirical performance has typically lagged behind, with some recent notable exceptions \citep{schrittwieser2019mastering,kaiser2019model,hafner2020mastering}.
+
+We take inspiration from human conscious planning behaviors to build set-based (object-oriented) neural network architectures which learn a useful state representation and in which attention can be focused on a small set of variables at decision-time, where the aspect of ``partial planning'' (see Sec.~\ref{sec:partial_planning} on Page.~\pageref{sec:partial_planning}) is enabled by modern deep RL techniques \citep{talvitie2008local,khetarpal2021temporally}. Specifically, we propose an end-to-end latent-space model-based RL agent which does not require reconstructing the observations, as in most existing works, and uses Model Predictive Control (MPC) for decision-time planning \citep{richards2005robust,rao2009survey}, which we introduced in Sec.~\ref{sec:MPC} on Page.~\pageref{sec:MPC}. From an observation, the agent encodes a set of objects as a state, with an attention bottleneck mechanism to \textbf{reason} over selected subsets of the state. Our experiments show that the introduced inductive biases improve a systematic OOD generalization, where consistent environmental dynamics are preserved across seemingly different tasks.
+
+\section{Discussions of Methodologies}
+
+Much of the background and context for this project have already been covered in Chap.~\ref{cha:basics} and Chap.~\ref{cha:prelim}. We now focus on aspects specific to this project that will help explain the rationale behind our design choices.
+
+\subsection{About Reconstruction, Observation-Level \& State-Level Planning}
+Many model-based RL methods utilize models that operate in the observation space or over state representations obtained with reconstruction-based losses  \citep{wang2018leap,kaiser2019model}. Appropriate as these models might be for tasks with few sensory inputs, \eg{}, continuous control of robots with joint states, these approaches encounter difficulties with high-dimensional inputs such as images, because they must focus on predictable yet potentially useless aspects of the environmental observations \citep{moerland2020model}. Besides the need to reconstruct irrelevant parts of the environment, it is unclear if representations built by a reconstruction loss (\eg{}, $L_2$ in the observation space) are effective for an model-based RL agent to plan or produce desired behaviors at all \citep{silver2016predictron,hafner2020mastering,hamrick2020role}, \eg{}, values, rewards, \etc{}. Taking a similar approach to those in \citet{silver2016predictron,schrittwieser2019mastering}, in this chapter, we build a latent space representation jointly shaped by all the training signals without using reconstruction (to serve value estimation and planning). We briefly discussed this topic previously in Sec.~\ref{sec:dynamics_predictors} on Page.~\pageref{sec:dynamics_predictors}.
+
+\subsection{About Staged Training with World Models}
+\label{sec:world_models}
+
+\textbf{World Models} are a popular methodology for model-based RL agents  \citep{ha2018world,kaiser2019model,moerland2020model}. These models require two explicit stages of training: 1) an representation of the environment is trained using exploration, sometimes in an unsupervised fashion; 2) the representation is fixed and used for planning and model-based RL. World models are favored for the lack of distributional shift and their adjacency to supervised deep learning methods. However, despite these advantages, the world model methodology relies on the implicit assumption that the  environments are highly homogeneous, \ie{}, the trained model that could handle the experiences from the exploration stage can handle the more rewarding trajectories as well. This is obviously not true in many environments, and the applicability of such method deteriorates rapidly with the increment of exploration difficulties. Such implicit assumption also demonstrates the limited OOD generalization abilities of such approach and indicate that world models may not be robust enough to generalize in novel situations. This can be viewed from a transient learning \vs{} continual learning perspective, discussed in Sec.~\ref{sec:transient_continual} on Page.~\pageref{sec:transient_continual}. In certain existing literature, world models are also understood to be the methodology of building predictive models based on the actions taken by the agents. We do not use such aspects when we discuss the world models.
+
+%in complex environments the model learned with random trajectories near the initial states is unlikely to generalize to states far from the initial states due to the improvement of the policy. 
+Furthermore, despite that the learned representations of a world model are expected to be effective in predicting the evolution of environmental states, they should not be expected to be effective for value estimation at all. This is because of the properties of neural networks: without a value estimation training signal, the learned representation would typically not be effective for value estimation; End-to-end model-based RL agents, \eg{}, \citet{silver2016predictron,schrittwieser2019mastering}, are able to learn the representation of the world simultaneously with the value estimator, hence have the potential to adapt better to non-stationarity in the control tasks.
+
+\subsection{About Vectorized \vs{} Set-based State Representations}
+\label{sec:set_encoder}
+
+Most existing deep RL methods employ vectorized state representations, where the agents' observation is encoded into a vector of fixed dimensionality of features \citep{mnih2015human,hessel2017rainbow}. while, set-based encoders, \aka{} object-oriented architectures, are designed to extract a set of unordered vectors (often named \textbf{objects} in such context), from which the desired signals can be predicted via permutation-invariant computations, which is extensively investigated in  \citet{zaheer2017sets,lee2019set}. We illustrate the difference between the two approaches in Fig.~\ref{fig:CP_encoder}. In recent years, the potential of set-based representations are discovered for RL, in terms of effectively building environmental state representations, in terms of compositional generalization \citep{wang2018nervenet,vinyals2019grandmaster, davidson2020investigating,mu2020refactoring,lowe2020contrasting}. In this chapter, we exploit the compositionality of these set-based state representations to enable the discovery of sparse interactions patterns among the encoded objects, as well as to facilitate the core bottleneck mechanism, analogous to the dynamic selection empowered by consciousness in the \nth{1} sense (C1). The combination of the set-based representation and the bottleneck provides a set of inductive biases consistent with dynamically selecting only the relevant aspects of the environmental state through the proposed attention mechanism. The sparsity of the dependencies captured by the learned dynamics model is enforced by the small size of the working memory bottleneck: each transition can only relate a few objects together, no more than the size of the bottleneck \citep{bengio2017consciousness}.
+
+\section{Methodology: Model-based RL with Set Representations}
+\label{sec:UP}
+
+We present a baseline end-to-end agent, which uses a set-based representation and carries out latent space decision-time planning, but \textbf{without} a consciousness-inspired small bottleneck \citep{alver2022understanding}. This agent serves as a baseline to investigate the OOD generalization capabilities brought by the bottleneck, which is to be introduced in Sec.~\ref{sec:CP_bottleneck} on Page.~\pageref{sec:CP_bottleneck}.
+
+As discussed previously, a model-free agent (or a model-free part of a model-based agent) relies on the mapping from observations to values, which is in turn a combination of an \textbf{state representation encoder} (encoder for short) and a \textbf{value estimator}. Aiming at a set-based representation, we designed the encoder to map an observation vector to a set of objects. Also, the value estimator is designed to be a permutation-invariant set-to-vector neural network, mapping the learned state representation to a value estimate. With our design, to maximize the gain from end-to-end learning, the same state representation is shared for all the agents' predictions, including the dynamics model's prediction of future states, rewards, \etc{}, to be discussed soon.
+
+\subsection{State Representation Encoder}
+We propose a neural network architecture targeting image-based observations. For this, we ``slice'' the CNN-output feature maps each position to characterize the feature of an object, similar to the approach in \citet{carion2020end}, as shown in Fig.~\ref{fig:CP_encoder}. 
+
+\begin{figure}[htbp]
+\centering
+\captionsetup{justification = centering}
+\includegraphics[width=0.8\textwidth]{figures/CP/fig_CP_encoder.pdf}
+\caption[Set-based State Representation Encoder]{\textbf{Set-based State Representation Encoder}: Compared to vectorized encoders, the feature map extracted by some feature extractor, \eg{}, a CNN, is ``sliced'' into individual feature vectors and concatenated with positional information. Note that such concatenation is a design choice that serves the dynamics model training purposes. Post concatenation, all resulting vectors are treated as \textit{objects}, indicating all entities an agent could perceive given the current observation.}
+\label{fig:CP_encoder}
+\end{figure}
+
+When a 3-dimensional CNN feature tensor is sliced into an unordered set of 1-dimensional feature vectors, the positional information of each feature will be lost. To recover such lost information, we concatenate each obtained feature vector with a positional embedding. This method is different from the common practice of mixing positional information by addition, as often used in transformer architectures \citep{vaswani2017attention}. This particular design aims to address a challenge in training a dynamics model with set-based representations, which is to be discussed in Sec.~\ref{sec:CP_model_alignment} on Page.~\pageref{sec:CP_model_alignment}.
+
+\subsection{(State-Action) Q-Value Estimator} 
+This Q-value estimator is implemented in the form $Q: \scriptS \to \doubleR^{|\scriptA|}$, where $\scriptS$ is the \textit{learned} state representation space by the previously introduced set-based encoder and $\scriptA$ is a discrete action set. The architecture we propose for this component uses an improved architecture upon DeepSets \citep{zaheer2017sets} and Set Transformer \citep{lee2019set}, as shown in Fig.~\ref{fig:CP_value_estimator}. This architecture performs reasoning based on the relationship among the encoded objects of the input set, resembling token-based methods in natural language processing \citep{porada2021modeling}.
+
+\begin{figure}[htbp]
+\centering
+\captionsetup{justification = centering}
+\includegraphics[width=1.0\textwidth]{figures/CP/fig_CP_value_estimator.pdf}
+\caption[Value Estimator \& Set-to-Vec Architecture]{\textbf{Value Estimator} $Q$ \& \textbf{Generic Set-to-Vec Architecture}: We improved upon the DeepSets and Set Transformer architectures \citep{zaheer2017sets,lee2019set} by swapping the Fully Connected (FC) Multi-Layer Perceptron (MLP) before pooling with transformer layers (Self-Attention (SA) + object-wise Fully Connected (FC)) \citep{vaswani2017attention}. After passing through the transformer layers, the intermediate set (gray) will entangle features and positions, \ie{}, the feature and the positional information of each object no longer have their own separate dimensions.}
+\label{fig:CP_value_estimator}
+\end{figure}
+
+\subsection{Transition Model}
+We design a set-to-set transition model that maps from $s_t, a_t$ to $\hat{s}_{t+1}$, $\hat{r}_t$ and $\hat{\omega}_{t+1}$. The model is a sample model that predicts the outcome of a transition.
+
+For clarity, we separate the computational flow of the transition model into: 1) the \textbf{dynamics model}, responsible for simulating how the state would evolve with an intended action $a_t$ and 2) the \textbf{reward-termination estimator} which maps $s_t, a_t$ to $\hat{r}_t$ and $\hat{\omega}_{t+1}$.
+
+\begin{figure}[htbp]
+\centering
+\captionsetup{justification = centering}
+\includegraphics[width=0.95\textwidth]{figures/CP/fig_rt_estimator.pdf}
+\caption[Reward-Termination Estimator based on Set Transitions]{\textbf{Reward-Termination Estimator based on Set Transitions}: The computational flow requires $3$ inputs. The \nth{1} input is either the full set $s_t$ for agents without the bottleneck, or bottleneck set $c_t$, for the bottlenecked agents (from the selection). The \nth{2} input is the respective output of the dynamics model for the next timestep, \ie{}, the predicted full set $\hat{s}_{t+1}$ or $\hat{c}_{t+1}$. The \nth{3} input is the embedding of the action that governs the simulated transition, \ie{}, the intention of the agent in the search step. The first two inputs are aligned and concatenated with the tiled action embeddings to form an augmented set, as shown to the left of the figure. The augmented set is then passed through the transformer layers to form an intermediate set, which is then mean-pooled and projected to the two predictions. With deterministic environments, it will be sufficient to predict the reward and termination with only $s_t$ and $a_t$.}
+\label{fig:rt_estimator}
+\end{figure}
+
+\phantomsection
+\label{sec:CP_model_alignment}
+
+While designing a reward-termination estimator should be  straightforward (a 2-headed augmented architecture similar to the value estimator, as shown in Fig.~\ref{fig:rt_estimator}), the dynamics model requires predicting changes on sets of \textit{unordered} objects (set-to-set). However, since the position and the feature of each object can change at the same time, the predicted set of objects may not align with their counterparts from the input set trivially. These additional degrees of freedom raise the computational difficulties of set-to-set predictions, often rendering the learning process ineffective. To address such challenge, in existing deep learning literature, a common approach is to use alignment methods, \eg{}, aligned loss functions such as Hausdorff distance or Chamfer matching. Nevertheless, these approaches are computationally inefficient and subject to local optima \citep{barrow1977parametric,borgefors1988hierarchical,kosiorek2020conditional}. With these drawbacks in mind, we deliberately separated the dimensions of feature and position in our objects: this design not only make the permutation-invariant computations position-aware, but also allow surprisingly simple end-to-end training losses over the dynamics, similar to those used for agents based on vectorized state representations. This is made possible by forcing the dimensions of positional information, \ie{}, the ``position tails'', to stay unchanged during the dynamics prediction. Such anchor addresses the difficulty of  alignment by design: the degree of freedom of changing positional tails is no longer allowed. Objects ``labeled'' with the same positional information in the output of the dynamics model $\hat{s}_{t+1}$ and the training sample input  $s_{t+1}$ must be aligned, forming pairs of objects with changes solely in the feature dimensions. This is further explained in Fig.~\ref{fig:CP_dynamics_UP}.
+
+\begin{figure}[htbp]
+\centering
+\captionsetup{justification = centering}
+\includegraphics[width=1.0\textwidth]{figures/CP/fig_CP_dynamics_UP.pdf}
+\caption[Set-Based Dynamics Model]{\textbf{Set-Based Dynamics Model}: This dynamics model architecture takes state set $s_t$ and action embedding $a_t$ as input and outputs the imagined next state $\hat{s}_{t+1}$. For the FC sub-layers of the transformer layers, we inject an action embedding \st{} the transformer computations become action-conditioned. This process is illustrated in detail in Fig.~\ref{fig:layer_transformer_conditioned}. After getting the intermediate set, we use linear projections to downscale each object to the correct dimensionality, while forcing the positions untouched and directly copied from the input $s_t$. Note that though the objects in the sets (input-intermediate-output) are inter-aligned, within each set they are still unordered, \ie{}, permutation-invariant.}
+\label{fig:CP_dynamics_UP}
+\end{figure}
+
+The action-conditioned transformer layer serves as the backbone of set-to-set learning in this chapter. A vanilla transformer layer consists of two consecutive sub-layers, the multi-head SA and the fully connected, each containing a residual pass. To make a vanilla transformer layer action-conditioned, we first embed the discrete actions into a vector and then concatenate it to every intermediate object output by the SA sub-layer. A detailed illustration of the action-conditioned transformer layer is provided in Fig.~\ref{fig:layer_transformer_conditioned}.
+
+\begin{figure}[htbp]
+\centering
+\captionsetup{justification = centering}
+\includegraphics[width=0.95\textwidth]{figures/CP/fig_layer_transformer_conditioned.pdf}
+\caption[Action-Conditioned Transformer Layer]{\textbf{Action-Conditioned Transformer Layer}: compared to the vanilla transformer layers, we concatenate additionally the action embedding to every intermediate object embeddings in the FC sub-layers of transformer layers. The FC sub-layer implements $X' = X + f(cat[X,a])$, where $X$ is the input set and  $cat([X,a]])$ is the concatenation of action embedding $\bm{a}$ to every object embedding in $X$, with $X'$ being the output set. $f$ needs to correctly downscale the dimensionality of its input to match that of $X$. Layer normalization layers are omitted for simplicity.}
+\label{fig:layer_transformer_conditioned}
+\end{figure}
+
+\subsection{Training}
+\label{sec:CP_training}
+The baseline model-based agent is trained the following losses (over sampled transitions):
+
+\begin{itemize}[leftmargin=*]
+\item 
+Value Estimation $\scriptL_{\text{TD}}$: push the current value estimates towards the update targets. These targets can be acquired with techniques such as Double DQN (\DDQN{}) \citep{hasselt2015double}. In experiments, C51-style distributional architectures as used for all scalar predictions including values and rewards, making $\scriptL_{\text{TD}}$ a KL-divergence \citep{bellemare2017distributional}.
+\item
+Dynamics Prediction $\scriptL_{\text{dyn}}$: A $L_2$ penalty established between the aligned $\hat{s}_{t+1}$ and $s_{t+1}$, where $sg(\hat{s}_{t+1})$ is the imagined next state given $o_t, a_t$ and $s_{t+1}$ is the true next state encoded from $o_{t+1}$. The stop-gradient function $sg$ indicates that the gradient updates will treat $\hat{s}_{t+1})$ as a constant tensor and do not compute the associated partial derivatives. This loss is made possible by our separate-dimension design of feature-position object representations.
+\item
+Reward Prediction $\scriptL_{r}$: given the C51 architecture, the KL-divergence between the imagined reward $\hat{r}_{t+1}$ predicted by the model and the true reward $r_{t+1}$ of the observed transition.
+\item
+Termination Prediction $\scriptL_{\omega}$: this is an optional binary cross-entropy loss from the imagined termination $\hat{\omega}_{t+1}$ to the ground truth $\omega_{t+1}$, obtained from environment feedback.
+\end{itemize}
+
+The overall loss for end-to-end training of this set-based model-based baseline agent is thus:
+\[
+    \mathcal{L} = \scriptL_{\text{TD}} + \scriptL_{\text{dyn}} + \scriptL_{r} + \scriptL_{\omega}
+\]
+As discussed earlier, jointly shaping the state representations avoids the collapse to trivial solutions and makes the representations useful for predicting all signals  of interest.
+
+In our implementation, no re-weighting is used for each loss term. This simplicity is possible because most individual losses are entropy-like and thus similar in magnitudes.
+
+\section{Methodology: Consciousness-Inspired Bottleneck}
+\label{sec:CP_bottleneck}
+
+Planning should focus on the relevant parts of the environment that matter the most for the intended plan. In this section, we introduce an inductive bias which facilitates C1-capable planning, which can be applied to the baseline agent introduced above. Such inductive bias is built on the observation that, with each action taken, only a limited few aspects of the environment should change, as in the real world. 
+
+From the input of a full state set $s_t$, we aim to capture all the relevant aspects of the state in a \textit{small} bottleneck set, which is expected to \textit{contain all the important transition-related information}. With such bottleneck set $c_t$, we can perform predictions about the change in the environmental state, the immediate reward, \etc{}. To be more precise, as illustrated in Fig.~\ref{fig:CP_bottleneck}, the model performs 1) selection of the bottleneck set from the full state-set (to acquire $c_t$), 2) dynamics simulation on the bottleneck set (from $c_t$ to $\hat{c}_{t+1}$) and 3) integration of predicted bottleneck set to form the predicted next state (to acquire $\hat{s}_{t+1}$).
+
+\begin{figure}[htbp]
+\centering
+\captionsetup{justification = centering}
+\includegraphics[width=0.85\textwidth]{figures/CP/fig_CP_bottleneck.pdf}
+\caption[Bottleneck-Enabled Set-Based Dynamics Model]{\textbf{Stages of Bottleneck-Enabled Set-Based Dynamics Model}: Similar to the baseline model illustrated in Fig.~\ref{fig:CP_dynamics_UP}, this component also takes the state set $s_t$ and the action embedding $a_t$ as input, and outputs the predicted next state $\hat{s}_{t+1}$, together with the transitional reward $r$ and the termination signal $\omega$. However, it produces some very different intermediate predictions / representations. 1) a bottleneck set $c_t$ is soft-selected from the whole state set $s_t$ via semi-hard top-down attention, conditioned on the intended action. Details of this operation are illustrated in Fig.~\ref{fig:compressor}; 2) dynamics are applied to the bottleneck set $c_t$ to form $\hat{c}_{t+1}$. This part is implemented with the same architecture presented in Fig.~\ref{fig:layer_transformer_conditioned}; 3) similarly, the reward and termination signals are predicted out of $c_t$, $\hat{c}_{t+1}$ and $a_t$, as depicted in Fig.~\ref{fig:rt_estimator}. At the same time, the changes introduced in $\hat{c}_{t+1}$ are \lowercase{\decompress{}}d with $s_t$ to obtain $\hat{s}_{t+1}$, the imagined next state, with an attention-like operation, as shown in Fig.~\ref{fig:decompressor}. The two computational flows in stage $3$ are naturally parallelizable.}
+\label{fig:CP_bottleneck}
+\end{figure}
+
+\subsection{Conditional State Selection}
+We soft-select a bottleneck set $c_t$ of $n$ objects from the potentially large input state set $s_t$ of $m \gg n$ objects. Then we only model the transition for the selected objects in $c_t$. To implement this, we creatively implement an action-conditioned key-query-value attention mechanism, where the source of keys and values come from $s_t$ and $a_t$, and the queries come from some learned dedicated set of vectors and of the action considered, as shown in Fig.~\ref{fig:compressor}.
+
+\begin{figure}
+\centering
+\captionsetup{justification = centering}
+\includegraphics[width=0.8\textwidth]{figures/CP/fig_compressor.pdf}
+\caption[Design of the Bottleneck \compressor{}]{\textbf{Design of the Bottleneck \compressor{}}: the bottleneck set $c_t$ is obtained by querying the (transformed) state set $s_t$, denoted as the \textit{intermediate set}, with a learned query set of size $k$, denoted as the \textit{bottleneck queries}, using a custom semi-hard attention \citep{gupta2021memory}. The selection is conditioned on the chosen action. Note that, for this component, self-attention should NOT be used to transform $s_t$ to create the value set (in terms of key-query-value) for the output, otherwise a mixture of all objects would be created, defeating the purpose of the bottleneck.
+}
+\label{fig:compressor}
+\end{figure}
+
+To dodge the difficulties of a hard attention bottleneck, we use a semi-hard top-$k$ attention mechanism to facilitate the selection of the bottleneck set. This semi-hard attention technique limits the influence of the irrelevant objects on the bottleneck set $c_t$ while allowing for a gradient to propagate on the assignment of relative weight to different objects. With purely soft attention, weights for irrelevant objects are never $0$ and learning to disentangle objects may be more difficult. Please refer to Sec.~\ref{sec:semihard_attention} on Page.~\pageref{sec:semihard_attention} for more details regarding how we used semi-hard top-$k$ attention to make sure that the output set $c_t$ is a transformed subset of the state set $s_t$ (the set being queried).
+
+\subsection{Dynamics / Reward-Termination Prediction on Bottleneck Sets}
+
+We use the same architecture as described in Sec.~\ref{sec:UP} (in Fig.~\ref{fig:rt_estimator}), but taking the bottleneck objects as input rather than the full state set.
+
+\subsection{Change Integration}
+
+The evolution on the bottleneck set should cover the change of the full state set. Thus, we implement an integration operation to `soft paste-back' the changes of the bottleneck state onto the state set $s_t$, yielding the imagined next state set $\hat{s}_{t+1}$. Intuitively, this integration is somewhat similar to an inverse operation of selection process. This `soft paste-back' is implemented with attention-like operations, more specifically querying $\hat{c}_{t+1}$ with $s_t$, conditioned on the action $a_t$. We emphasize attention-``like'' here because, since certain objects in $s_t$ should not interact with anything from the bottleneck set at all, we allow the attention weights to be $0$ by forgoing the \softmax{} operation when computing the attention weights. Details of the architecture regarding change integration are in Fig.~\ref{fig:decompressor}.
+
+\begin{figure}
+\centering
+\captionsetup{justification = centering}
+\includegraphics[width=0.95\textwidth]{figures/CP/fig_decompressor.pdf}
+\caption[Design of the Bottleneck \decompressor{}]{\textbf{Design of the Bottleneck \decompressor{}}: This component takes the $3$ inputs, the state set $s_t$, the bottleneck set $\hat{c}_{t+1}$ and the action embedding $a_t$. The output $\hat{s}_{t+1}$ is generated by using the action-augmented $s_t$ to query the imagined bottleneck set $\hat{c}_{t+1}$ with an attention-like operation without the \softmax{} on attention weights. Note that there is the similar operation of downscaling objects to features and copying the positional tails. For more details of the query operation, please refer to Sec.~\ref{sec:attention} on Page.~\pageref{sec:attention}. Note that because there is no SA used to transform the full state set $s_t$, meaningful changes during $s_t \to s_{t+1}$ must be modeled by the query of the bottleneck set $\hat{c}_{t+1}$. Thus, the integrator cannot be used to bypass the bottleneck.
+}
+\label{fig:decompressor}
+\end{figure}
+
+\subsection{Discussion}
+%Treating the resulting model as a black box like before, the bottleneck does not impact the planning behavior nor the training procedures discussed earlier.
+The proposed bottleneck is a natural complement to the baseline agent introduced previously. In particular, planning and training are carried out the same way as discussed in Sec.~\ref{sec:UP}.
+
+One may wonder if it is appropriate to have the value estimator share the bottleneck with the transition model. To estimate a value, the estimator needs to consider the future object interactions, which likely include the objects that do not matter for the current transition; Additionally, it is not necessary to implement an explicit bottleneck mechanism on the value estimator, since the mean-pooling operation functions as the selection if some objects are learned to be ignored.
+
+We call the baseline agent equipped with the bottlenecked inductive biases in this section the Conscious Planning (CP) agent. We expect the CP agent to demonstrate the following advantages:
+\begin{itemize}[leftmargin=*]
+\item
+More Effective Generalization: only relevant objects participate in each planning step, thus each planning step is handling a smaller scale, more manageable problem. Thus, generalization should be improved even in OOD scenarios, because the transitions do not depend on the parts of the state ignored by the bottleneck.
+\item
+Lower Computational Cost: directly employing transformers to simulate the full state dynamics results in a complexity of $\scriptO(|s_t|^2 d)$, where $d$ is the dimensionality of the objects, due to the use of self-attention, while the bottlenecked variants lowers the related parts to $\scriptO(|s_t||c_t| d)$.
+\end{itemize}
+
+The partial predictions enabled by the bottleneck can be viewed from the perspectives of partial / local models. While, previous works have more emphasis on the selective attention towards points in history (temporal focus) \citep{talvitie2008local}, and our bottleneck-equipped model has the attention towards aspects within state and state transitions.
+
+\subsection{Birdseye View of Overall Design}
+We assemble the components and present the organization of the proposed CP agent in Fig.~\ref{fig:birdseye}. 
+
+\begin{figure}[htbp]
+\centering
+\captionsetup{justification = centering}
+\includegraphics[width=0.85\textwidth]{figures/CP/fig_birdseye.pdf}
+\caption[Overall Organization of Proposed Components for CP Agent]{\textbf{Overall Organization of Proposed Components for CP Agent}: Both the model-free baseline and the model-based baseline without the bottleneck can be extracted from the figure as well.}
+\label{fig:birdseye}
+\end{figure}
+
+\section{Research Findings: Experiments}
+\label{sec:CP_experiments}
+
+We wish to empirically validate the advantages of generalization brought by the introduced consciousness-inspired bottleneck. This is to be done with rigorously  controlled experiments and ablation studies.
+
+\subsection{Environment / Task Description}
+
+We use \RDS{} as the backbone environment in the experiments of this chapter. Crucial for the experimental insights and isolating the unwanted technical difficulties such as learning from complicated visual observations, \RDS{} tasks provide clear object definitions, with clear and intuitive dynamics based on object interactions. For more details regarding the environment, please check Sec.~\ref{sec:RDS} on Page.~\pageref{sec:RDS}.
+
+For demonstration purposes, the main set of experiments we will be using in this chapter are conducted on $8 \times 8$-sized \RDS{} instances paired with ``turn-or-forward'' dynamics. In the later parts, we will provide additional test settings with different dynamics and different world sizes (Sec.~\ref{sec:CP_more_exp}, Page.~\pageref{sec:CP_more_exp}).
+
+For better generalization, the agent needs to understand how to avoid lava in general (and not at specific locations, since their placement changes) and to reach the target locations as quickly as possible. For the agent to be able to \textit{understand} the environment dynamics instead of \textit{memorizing} specific task layouts, we generate a new environment for each episode (training or evaluation), facilitating essentially a multi-task setting. In each training episode, the agent starts at a random position on the leftmost or rightmost edge, and the goal is placed randomly somewhere on the opposite edge. Consistent with all \RDS{} instances, the difficulty parameter $\delta$ controls partially how seemingly different the OOD evaluation tasks are to the in-distribution training tasks, though we know the underlying dynamics of all these tasks are consistent. For training episodes, the difficulty is fixed to $\delta=0.35$\footnote{Based on \RDS{}, this was the \nth{1} OOD-focused experimental setting used in this thesis, The setting was later refined in Chap.~\ref{cha:skipper} and Chap.~\ref{cha:delusions}.}. % We note that most usual RL benchmarks contain fixed environments, where the agent is expected to acquire a specific optimal policy. These environments are ill-suited for our purpose.
+
+To be specific, the OOD generalization we refer to in this chapter is \textit{the agents' ability to generalize its learned task skills across seemingly different tasks with common underlying dynamics}, \ie{}, systematic generalization \citep{frank2009connectionist}. For OOD evaluation, the agent is expected to adapt to new tasks with consistent underlying dynamics in a $0$-shot fashion, \ie{}, with the agent's parameters fixed \citep{sylvain2019locality}. In other words, the agent will be challenged with distribution shifts \citep{mendonca2020meta,quinonero2022dataset}. 
+
+The OOD evaluation tasks are designed to challenge the trained agents. These tasks include changes both in the support (orientation) and in the distribution (difficulty): the agents are deployed in \textit{transposed} layouts that they have never seen before with varying levels of difficulties ($\{0.25, \textbf{0.35}, 0.45, 0.55\}$) that they were not trained on. The differences of in-distribution (training) and OOD (evaluation) environments are illustrated in Fig.~\ref{fig:distshift}. To be more specific, in transposed tasks, an agent starts at the top or bottom edge and the goal grid is on the farthest edge (bottom or top), whereas a training environment has the agent and goal on the left or right edges.
+
+\begin{figure}
+\centering
+\subfloat[In-Dist, $\delta = 0.35$]{
+\captionsetup{justification = centering}
+\includegraphics[width=0.185\textwidth]{figures/CP/fig_distshift_train_35.png}}
+\hfill
+\subfloat[OOD, $\delta = 0.25$]{
+\captionsetup{justification = centering}
+\includegraphics[width=0.185\textwidth]{figures/CP/fig_distshift_eval_25.png}}
+\hfill
+\subfloat[OOD, $\delta = 0.35$]{
+\captionsetup{justification = centering}
+\includegraphics[width=0.185\textwidth]{figures/CP/fig_distshift_eval_35.png}}
+\hfill
+\subfloat[OOD, $\delta = 0.45$]{
+\captionsetup{justification = centering}
+\includegraphics[width=0.185\textwidth]{figures/CP/fig_distshift_eval_45.png}}
+\hfill
+\subfloat[OOD, $\delta = 0.55$]{
+\captionsetup{justification = centering}
+\includegraphics[width=0.185\textwidth]{figures/CP/fig_distshift_eval_55.png}}
+\caption[Multitask RL Setting, with In-Distribution and OOD Tasks on \RDS{}]{\textbf{Multitask RL Setting, with In-Distribution and OOD Tasks on \RDS{}}: \textbf{a)} example of training environments; \textbf{b) - e)} examples of OOD evaluation environments (transposed with a gradient of OOD difficulties $\delta$). For each episode (training or OOD), we randomly generate a new environmental instance, which we call a ``task'', from a sampling distribution controlled by certain $\delta$. Note that the training environments and the OOD testing environments have almost no intersections.}
+\label{fig:distshift}
+\end{figure}
+
+\subsection{Compared Methods}
+We based all compared agents on a common model-free baseline: a set-based variant of \DDQN{} (introduced in Sec.~\ref{sec:DDQN} on Page.~\pageref{sec:DDQN}, introduced in \citet{hasselt2015double}) with prioritized replay and distributional outputs. We make all compared methods share architectures as much as possible to ensure fair comparisons. Details of the compared methods, their adaptation, and hyperparameters are provided in the Appendix (Sec.~\ref{sec:CP_aux}, Page.~\pageref{sec:CP_aux}).
+
+\subsection{Agent Variants}
+We compare the proposed approach, labeled CP (for Conscious Planning) in the figure legends, against the following methods (variants):
+\begin{itemize}[leftmargin=*]
+\item
+\textbf{UP} (for ``Unconscious Planning''): the agent proposed in Sec.~\ref{sec:UP}, lacking the bottleneck.
+\item
+\textbf{model-free}: this model-free set-based agent is the common backbone for all the compared set-based model-based agents. It consists of only the encoder and the value estimator, sharing their architectures with CP and UP, as shown in the red box in Fig.~\ref{fig:birdseye}.
+\item
+\textbf{\Dyna{}}: a set-based model-based RL agent which includes a model-free agent and an observation-level transition model, \ie{}, a transition generator, which shares the same architecture as the CP transition model (with the same hyperparameters as the best performing CP agent), yet applied on the observation-level without an encoder. If performing perfectly, the agent could essentially double the batch size of the model-free baseline by augmenting training batches with an equal number of generated transitions.
+\item
+\textbf{\Dyna{}*}: A \Dyna{} variant using the ground truth environment model for transition generation. This is expected to demonstrate \Dyna{}'s best-possible performance.
+\item
+\textbf{WM-CP}: A world model CP variant that is different for following a $2$-stage training procedure \citep{ha2018world}. First, the model (together with the state representation encoder) is trained with $10^{6}$ random transitions. After this, the encoder and the model are fixed and RL (value estimation) begins.
+\item
+\textbf{\NOSET{}}: A UP-counterpart with vectorized representations and no bottleneck mechanism.
+\end{itemize}
+
+\subsection{Performance Evaluation (\RDS{} with Turn-Or-Forward Dynamics)}
+
+%\subsubsection{Task Solving Performance}
+\subsubsection{In-Distribution}
+In Fig.~\ref{fig:in_dist}, we present the in-distribution training performance for the compared agents, \ie{}, the agents are evaluated with tasks sampled from the same distribution of tasks as that of training.
+
+For \textbf{UP}, \textbf{CP} and the corresponding \textbf{modelfree} baselines, the performance curves indicate convergence to optimal success rates, with confidence intervals overlapping, showing no statistically significant difference in performance. These demonstrate that the $3$ agents are effective in learning to solve the in-distribution tasks. 
+
+During \textbf{WM}'s ``warm-up'' period, the model learns a representation that captures the underlying dynamics. After the warm-up, the encoder and the model parameters are fixed, and only the value estimator learns to predict the state-action values based on the learned representation. From Fig.~\ref{fig:in_dist}, we can observe that the increase in performance is not only delayed due to the warm-up phase (during which rewards are not taken into account), but also visibly harmed, presumably because the value estimator has no ability to shape the representation to better suit its needs.
+
+For in-distribution evaluation, \Dyna{} performs badly while \Dyna{}* perform relatively well. We suspect that this is due to the delusional transitions generated at the early stages of training, from which the value estimator never recovers\footnote{This was validated and investigated by concurrent work \citet{jafferjee2020hallucinating} and importantly in later work \citet{lo2024goal}, which is not only heavily connected to Chap.~\ref{cha:skipper}, but also draws great similarity to approaches used in Chap.~\ref{cha:delusions}.}. However, despite that \Dyna{}* is by design free of this trouble and exhibits satisfactory training performance, we can see that it does not achieve satisfactory OOD performance (later in Fig.~\ref{fig:comparison_OOD}), due to the limited OOD generalization abilities of background planning methodology \citep{alver2022understanding}.
+
+\NOSET{} performs very badly even in-distribution, per Fig.~\ref{fig:in_dist}. In later experiments, we show that \NOSET{} seems only able to perform well in a more classical, monotask RL setting, suggesting its reliance on memorization. There, we provide more results regarding the model accuracy.
+
+\begin{SCfigure}[][htbp]
+\includegraphics[width=0.4\textwidth]{figures/CP/fig_comparison_train.pdf}
+\caption[In-Distribution Task Performance]{\textbf{In-Distribution Task Performance}: the $x$-axis shows the training progress ($2.5\times10^{6}$ agent-environment interactions). The $y$-axis values are generated by agent snapshots at times corresponding to the $x$-axis values. The bands denote 95\%-CI. CP, UP, model-free and \Dyna{}* agents all learn to solve the in-distribution tasks quickly. All error bars are 95\% confidence intervals obtained from $20$ independent seed runs.}
+\label{fig:in_dist}
+\end{SCfigure}
+
+\subsubsection{OOD Evaluation Performance}
+
+The zero-shot evaluations focus on testing agents' performance facing a gradient of OOD difficulties. The results are presented in Fig.~\ref{fig:comparison_OOD}. \textbf{CP(8)}, \textbf{CP} with $k=8$ for top-$k$ semihard attention, shows a clear performance advantage over UP, validating the OOD generalization capability. The \textbf{\Dyna{}*} baseline, essentially the performance upper bound of \textbf{\Dyna{}}-based planning methods, shows no significant performance gain in OOD tests compared to model-free methods. \textbf{WM} may have the potential to reach similar performance as CP, yet it needs to warm up the encoder with a significant portion of the agent-environment interaction budget. We investigate further into the potentials of the WM baseline in Sec.~\ref{sec:potential_WM} on Page.~\pageref{sec:potential_WM}.
+
+\begin{figure}[htbp]
+\centering
+\subfloat[OOD, $\delta = 0.25$]{
+\captionsetup{justification = centering}
+\includegraphics[width=0.242\textwidth]{figures/CP/fig_comparison_OOD25.pdf}}
+\hfill
+\subfloat[OOD, $\delta = 0.35$]{
+\captionsetup{justification = centering}
+\includegraphics[width=0.242\textwidth]{figures/CP/fig_comparison_OOD35.pdf}}
+\hfill
+\subfloat[OOD, $\delta = 0.45$]{
+\captionsetup{justification = centering}
+\includegraphics[width=0.242\textwidth]{figures/CP/fig_comparison_OOD45.pdf}}
+\hfill
+\subfloat[OOD, $\delta = 0.55$]{
+\captionsetup{justification = centering}
+\includegraphics[width=0.242\textwidth]{figures/CP/fig_comparison_OOD55.pdf}}
+
+\caption[OOD performance of Compared Agents under a Gradient of Difficulties]{\textbf{OOD performance of Compared Agents under a Gradient of Difficulties}: The figures show a consistent pattern: the MPC-based end-to-end agent equipped with a bottleneck (\textbf{CP}) performs the best among all compared methods. All error bars are 95\%-CI obtained from $20$ independent seed runs. All sub-figures share the same $y$-range / scale.}
+\label{fig:comparison_OOD}
+\end{figure}
+
+We want to also verify how much decision-time planning in novel situations could address the generalization gap. For this, we compare the planning agents' performance by enabling / disabling planning (relying on the model-free pass only) in OOD evaluation scenarios. The results are shown in Fig.~\ref{fig:CP_inductive}.
+
+\begin{SCfigure}[][htbp]
+\includegraphics[width=0.4\textwidth]{figures/CP/fig_OOD35_inductive.pdf}
+\caption[Reasoning Addresses Generalization Gap, Bottleneck benefits OOD capability]{\textbf{Reasoning Addresses Generalization Gap, Bottleneck benefits OOD capability}: the $x$-axis shows the training progress ($2.5\times10^{6}$ agent-environment interactions). The $y$-axis values are generated by agent snapshots at times corresponding to the $x$-axis values. noplan(8) and noplan(UP) correspond to the CP(8) and UP variants with planning disabled during OOD tests. Comparing \textit{noplan} against \textit{modelfree}, we see that planning during training is beneficial for both value estimation and representation learning. All error bars are 95\% confidence intervals obtained from $20$ independent seed runs.}
+\label{fig:CP_inductive}
+\end{SCfigure}
+
+\subsubsection{Verification of Selection}
+We present some examples to visually verify  the object selection during the planning steps in Fig.~\ref{fig:visualize_att}. Note that though these visualizations provide an intuitive understanding of the agents' behavior, they do not serve statistical purposes. In \textbf{a)} and \textbf{b)}, the agent only turns in its current grid without changing any other grids, thus it exhibits quite random attention towards the other grids. While in c), we can see that the agent takes consideration into the grid (the blue lava grid, color-inverted from orange) that it is facing before taking a step-forward action, since it predicts that such grid will be changed given the intended actions.
+
+Additionally, we collected the coverage ratio of all the relevant objects by the selection phase in all the in-distribution and OOD evaluation cases. The collected data on bottleneck sizes $k=4$, $k=8$ and $k=16$ indicate that the coverage is almost perfect very early on during training. We do not provide these curves because the convergence to $100\%$ is so fast that the curves would all coincide with the line $y=1$, with some minor fluctuations of the confidence intervals.
+
+\begin{figure}[htbp]
+
+\subfloat[Turn Left]{
+\captionsetup{justification = centering}
+\includegraphics[width=0.25\textwidth]{figures/CP/fig_visualize_att_0.png}}
+\hfill
+\subfloat[Turn Right]{
+\captionsetup{justification = centering}
+\includegraphics[width=0.25\textwidth]{figures/CP/fig_visualize_att_1.png}}
+\hfill
+\subfloat[Step Forward]{
+\captionsetup{justification = centering}
+\includegraphics[width=0.25\textwidth]{figures/CP/fig_visualize_att_2.png}}
+
+\caption[Visualization of Attention Selection]{\textbf{Visualization of Bottleneck Selection given Observation \& Specific Actions}: These figures are extracted from a fully trained CP agent under OOD evaluation. The bottleneck is set to very small for clearer visualization purposes. We invert the color of the selected grid by the selector's output semihard attention weights.}
+\label{fig:visualize_att}
+\end{figure}
+
+\subsection{Ablation Studies}
+The ablation studies focus on validating the individual design choices by comparing the proposed agents to variants with certain designs altered.
+
+\subsubsection{Bottleneck \& Planning}
+With ablation studies, we validate the effectiveness of our design regarding the bottleneck and planning. We present the key results in Fig.~\ref{fig:OOD35}.
+
+% visualizes two of these experiments. For more ablation results, which include validation of the effectiveness of different model choices, and further quantitative measurements, \eg{}, of OOD ability as a function of behavior optimality and model accuracy, please check the the later experiments.
+
+\begin{figure}[htbp]
+\subfloat[\textbf{Value-guided tree search does not generalize well in OOD evaluation}: random heuristic significantly outperforms best-first heuristic]{
+\captionsetup{justification = centering}
+% (fig_OOD35_heuristics.pdf, draw_eval_heuristics.m)
+\includegraphics[width=0.48\textwidth]{figures/CP/fig_OOD35_heuristics.pdf}}
+\hfill
+\subfloat[\textbf{Attention Type}: when used in bottleneck selection, semi-hard attention outperforms soft attention]{
+\captionsetup{justification = centering}
+% (fig_OOD35_hardness.pdf, draw_eval_hardness.m)
+\includegraphics[width=0.48\textwidth]{figures/CP/fig_OOD35_hardness.pdf}}
+
+\subfloat[\textbf{Action Optimality}: for in-distribution evaluation, the methods both perform well. Interestingly, the model-free agent performs superior possibly due to its simple value-based greedy policy. However, in OOD evaluation, only the CP agent with the random heuristic shows neither significant deterioration nor signs of overfitting]{
+\captionsetup{justification = centering}
+% (fig_OOD35_action_quality.pdf, draw_quality_action.m)
+\includegraphics[width=0.48\textwidth]{figures/CP/fig_OOD35_action_quality.pdf}}
+\hfill
+\subfloat[\textbf{Tree Search Dynamics Accuracy}: we average over the cumulative $L_1$ error in the simulated state of the chosen trajectories during tree search. The curves show no signs of overfitting, as the cumulative trajectorial dynamics errors for OOD evaluation are decreasing continuously.]{
+\captionsetup{justification = centering}
+% (fig_L1_cumulative.pdf, draw_L1_cumulative_semihard.m)
+\includegraphics[width=0.48\textwidth]{figures/CP/fig_L1_cumulative.pdf}}
+
+\caption[Ablation Results regarding Spatial Abstraction]{\textbf{Ablation Results regarding Spatial Abstraction via the Proposed Bottleneck Mechanism}: With $\delta = 0.35$, each error bar (95\%-CI) is obtained from $20$ independent seed runs.}
+\label{fig:OOD35}
+\end{figure}
+
+\subsubsection{Model Accuracy}
+This set of experiments intends to understand how well the bottleneck sets capture the underlying dynamics of the environments. For each transition, with the help of DP, we partition the grid points into two classes: one containing all relevant objects that have an impact on reward or termination or changed during the transition; While, the other contains the remaining grid points. As a result, the dynamics errors are split into two terms which correspond to the accuracy of the model simulating the relevant and irrelevant objects, respectively.
+
+Acknowledging the differences in the norm of the learned latent representations for each run, due to the stochasticity in the parameter initialization and optimization processes, we use the \textit{normalized} element-wise mean of $L_1$ (absolute value) difference between $\hat{s}_{t+1}$ and $s_{t+1}$. The residual is normalized by the element-wise mean $L_1$ norm of $s_{t+1}$. As a metric of model accuracy, we name such metric \textit{relative $L_1$}. This metric shows the degree of deviation in dynamics learning: the lower it is, the more consistent are the learned and observed dynamics.
+
+Fig.~\ref{fig:in_dist_acc} \textbf{a)} presents the progression of \textit{relative $L_1$} error of the CP agent during the in-distribution learning process. With the help of the bottleneck, the error for the irrelevant parts converge very quickly while the model focuses on learning the relevant changes in the dynamics. We provide the model accuracy curves of the \textbf{WM} and \Dyna{} baselines in the later parts of the experiments.
+
+For reward and termination estimations, our results show no significant difference in estimation accuracies, with varying bottleneck sizes. However, they do have significant impact on the quality of the learned dynamics. In Fig.~\ref{fig:in_dist_acc} \textbf{b)}, we present the convergence of the relative dynamics accuracy of different CP and UP variants. CP agents generally learn as fast as UPs, which indicates low overhead for learning the selection and integration. We will present a more detailed sensitivity analyses for the bottleneck size later in Sec.~\ref{sec:CP_exp_sensitivity}.
+
+\begin{figure}[htbp]
+
+\subfloat[Split of Relative $L_1$ error]{
+\captionsetup{justification = centering}
+\includegraphics[width=0.48\textwidth]{figures/CP/fig_dynamics_split.pdf}}
+\hfill
+\subfloat[Comparison of Relative $L_1$ error]{
+\captionsetup{justification = centering}
+\includegraphics[width=0.48\textwidth]{figures/CP/fig_dynamics_L1_compare.pdf}}
+
+\caption[In-Distribution Model Performance]{In-Distribution Model Performance: Each band shows the mean curve (bold) and the 95\% confidence interval (shaded) obtained from $20$ independent seed runs. \textbf{a)}: Partitioning of the relative $L_1$ dynamics prediction errors into that of the relevant objects and the irrelevant ones: The difference in the errors shows that the bottleneck learns to ignore the irrelevance while prioritizing on the relevant parts of the state; \textbf{b)}: Comparison of the overall relative $L_1$ errors (not partitioned). For CP variants, the numbers in the parentheses correspond to the bottleneck sizes and the suffixes the types of attention for the bottleneck selection. Semi-hard attention learns more quickly than soft attention at early stages, but they both converge to similar accuracy levels. This is likely because semi-hard attention is forced to pick few objects and thus to ignore irrelevant objects even at early stages of training.}
+\label{fig:in_dist_acc}
+\end{figure}
+
+\subsubsection{Action Regularization}
+For the stability of the CP agent, we applied an additional regulatory loss that predicts the action $a_t$ with $c_t$ and $\hat{c}_{t+1}$ as input, resembling an inverse model \citep{conant1970every}. The loss is implemented with categorical cross-entropy, similar to how we handled the  termination prediction loss. As shown in Fig.~\ref{fig:predact}, This additional training signal is shown in experiments to produce better OOD results, especially when the bottleneck is small.
+
+\begin{SCfigure}[][htbp]
+\includegraphics[width=0.45\textwidth]{figures/CP/fig_predact.pdf}
+\caption[Impact of Action Regularization Loss]{Impact of Action Regularization Loss: we present the results on an ablation study on the impact of the action regularization loss on the OOD evaluation success rates of CP(4) agents, with difficulty $\delta=0.35$ on \RDS{}. The ``predact'' configuration is by default enabled in all experiments. Each point of the band correspond to the mean and confidence interval are obtained from $20$ independent seed runs.}
+\label{fig:predact}
+\end{SCfigure}
+
+\subsection{Sensitivity Studies}
+\label{sec:CP_exp_sensitivity}
+
+We investigate how sensitive the compared agents are to certain hyperparameters and to the sizes of the tasks.
+
+\subsubsection{Bottleneck Size}
+
+Without a question, the most important hyperparameter of the CP agents is $k$, which controls the size of the bottleneck set. We present the results of a sensitivity study regarding the hyperparameter $k$ in Fig.~\ref{fig:bottleneck_size}.
+
+\begin{SCfigure}[][htbp]
+\includegraphics[width=0.45\textwidth]{figures/CP/fig_OOD35_bottleneck.pdf}
+\caption[Sensitivity to Bottleneck Sizes (controlled by k)]{\textbf{Sensitivity to Bottleneck Sizes (controlled by $k$)}: bottleneck sizes $k=4$ and $k=8$ perform similarly the best within $k \in \{2, 4, 8, 16\}$. Note that the performance of CP agents (agents with bottlenecks) is consistently better than those without (UP), showing the bottlenecks' effectiveness for generalization}
+\label{fig:bottleneck_size}
+\end{SCfigure}
+
+\subsubsection{Planning Steps}
+We investigate the number of planning steps allowed in each MPC session at each decision point. Intuitively, if the planning steps are too few, then the planning would have little gain over model-free methods. While, if the planning steps are too many, we suffer from cumulative planning errors and potentially prohibitive wall time.
+
+Thus, we have a strong intuition that an appropriate value for the number of planning steps could potentially achieve a good tradeoff. To search for such good value, we tried different numbers of planning steps for CP(8) variant. Note that the planning steps during training and OOD evaluation are set to be the same, to ensure that the planning during evaluation would be carried out to the same extent during training. The results visualized in Fig.~\ref{fig:nshaped_steps} suggested that $5$ planning steps achieves the best performance in OOD with difficulty 0.35. Base on this, for all other experiments reported in this chapter, $5$ is set to be the default number of planning steps.
+
+\begin{SCfigure}[][htbp]
+\includegraphics[width=0.45\textwidth]{figures/CP/fig_nshaped_steps.pdf}
+\caption[Success Rates given Different Numbers of Planning Steps]{\textbf{Success Rates given Different Numbers of Planning Steps}: Success rates of CP(8) agent under OOD difficulty $\delta=0.35$ are presented. each data point is obtained by averaging from the last $20\%$ of $20$ independent seed runs.}
+\label{fig:nshaped_steps}
+\end{SCfigure}
+
+\subsubsection{World Sizes}
+\label{sec:CP_world_sizes}
+
+To inspect the scalability of the proposed method (in terms of the number of objects in the full state sets), we compare the methods CP(8), UP and model-free in a range of gridworld sizes (from $6\times6$ all the way to $10\times10$). The results are presented in Fig.~\ref{fig:comparison_worldsizes}.
+
+\begin{figure}[htbp]
+\centering
+
+\subfloat[OOD, $\delta = 0.25$]{
+\captionsetup{justification = centering}
+\includegraphics[width=0.242\textwidth]{figures/CP/fig_mazesizes_OOD25.pdf}}
+\hfill
+\subfloat[OOD, $\delta = 0.35$]{
+\captionsetup{justification = centering}
+\includegraphics[width=0.242\textwidth]{figures/CP/fig_mazesizes_OOD35.pdf}}
+\hfill
+\subfloat[OOD, $\delta = 0.45$]{
+\captionsetup{justification = centering}
+\includegraphics[width=0.242\textwidth]{figures/CP/fig_mazesizes_OOD45.pdf}}
+\hfill
+\subfloat[OOD, $\delta = 0.55$]{
+\captionsetup{justification = centering}
+\includegraphics[width=0.242\textwidth]{figures/CP/fig_mazesizes_OOD55.pdf}}
+
+\caption[Scalability of OOD Performance under a Spectrum of Difficulties and World Sizes]{\textbf{Scalability of OOD Performance under a Spectrum of Difficulties and World Sizes}: The $x$ axes are ticked with \#grids in each gridworld size, representing the number of entities for in the state set, thus \textit{non-linear} \wrt{} the world sizes. We can observe that, generally, the smaller the world sizes, the better and the closer the performance of all 3 methods are. The fact that the CP(8) performance deteriorates slower than UP suggests that the bottleneck may contribute to more scalable performance in tasks with larger amount of entities. All error bars are obtained from $20$ independent seed runs.}
+\label{fig:comparison_worldsizes}
+\end{figure}
+
+\subsection{More Experiments, Discussions \& Failed Attempts}
+\label{sec:CP_more_exp}
+
+We go beyond the main experiments (``turn-or-forward'' \RDS{} instances) to gain some additional insights.
+
+\subsubsection{Alternative Dynamics}
+We want to know if the conclusions of previous experiments  would still hold, if the agents are given tasks with different dynamics. For this purpose, we modify the original tasks in the previous experiments by a new set of ``Turn-And-Forward'' dynamics: the action space is re-designed to include $4$ composite actions, each of which first turns to some directions (forward, left, right or back based on the agent's current facing direction in the environment) and then move forward if possible (remain in the boundaries of the grid world).
+
+This new set of environment dynamics (``turn-AND-forward'') can be seen as a composition of the original dynamics (``turn-OR-forward'') and hence produces shorter planning trajectories. In Fig.~\ref{fig:comparison_v3}, we observe that all three methods are performing better compared to the original tasks and the previous conclusions about experiments are again validated.
+
+\begin{figure}[htbp]
+\centering
+
+\subfloat[OOD, $\delta = 0.25$]{
+\captionsetup{justification = centering}
+\includegraphics[width=0.242\textwidth]{figures/CP/fig_v3_OOD25.pdf}}
+\hfill
+\subfloat[OOD, $\delta = 0.35$]{
+\captionsetup{justification = centering}
+\includegraphics[width=0.242\textwidth]{figures/CP/fig_v3_OOD35.pdf}}
+\hfill
+\subfloat[OOD, $\delta = 0.45$]{
+\captionsetup{justification = centering}
+\includegraphics[width=0.242\textwidth]{figures/CP/fig_v3_OOD45.pdf}}
+\hfill
+\subfloat[OOD, $\delta = 0.55$]{
+\captionsetup{justification = centering}
+\includegraphics[width=0.242\textwidth]{figures/CP/fig_v3_OOD55.pdf}}
+
+\caption[OOD Performance of Compared Agents  in ``Turn-and-Forward'' Tasks]{\textbf{OOD Performance of Compared Agents in ``Turn-and-Forward'' Tasks}: All error bars are obtained from $20$ independent seed runs.}
+\label{fig:comparison_v3}
+\end{figure}
+
+\subsubsection{Shaping Representations with Many Signals}
+We have gathered more empirical evidence regarding the non-conflicting training of the state-representation based on the signals. This means, it is possible to train a state representation that can be used to predict several interesting quantities to the RL agent at the same time. In terms of the accuracy of model learning, according to our results of the \textbf{WM} baseline, removing the value estimation training signal would result in a poorer representation, but not in a lower accuracy when predicting other relevant signals; Similarly, removing termination signal would not impact the convergence of reward prediction accuracy or that of the dynamics prediction, despite that the RL performance would be impacted. Also, removing the reward signal or the next state dynamics prediction signal leads to collapse of the MPC based behavior policy. Yet, the convergence of the other remaining training signals is not significantly affected. With these observations, we would suggest that we have, at least in this task setting, learned a set-based representation capable of predicting all interesting quantities.
+
+\subsubsection{Failed Effort: Straight-Through Hard Subset Selection with Gumbel}
+We initially tried to use Gumbel subset selection \citep{xie2019differentiable} to implement a hard selection based bottleneck, but we later realized that such approach will not work. We expected the model to pick the right objects by generating a binary mask, and then use the masked objects as the bottleneck set. On the surface, this two-staged design would align more with the consciousness theories, and would yield clearer interpretability.
+
+However, we came to realize that such method overlooked an implicit chicken-and-egg problem. This problem can be intuitively described as follows: to learn how to pick, the model should first understand the dynamics. Yet if the model does not pick the right objects frequently enough, the dynamics would never be understood. Mathematically, this problem is more recently described as the ``degeneracy'' of discrete bottlenecks. Our proposed semi-hard / soft approaches address such problem by essentially making the two staged selection and simulation as a whole for the gradient-based optimization.
+
+\subsection{Details of Baselines}
+
+\subsubsection{WM}
+\label{sec:potential_WM}
+
+Our \textbf{WM} baselines, \ie{} agents with World Model (WM) trained in stages, share the same architectures (and hyperparameters) as their CP or UP counterparts \citep{zhou2024dino}. The only difference is that \textbf{WM} adopts a $2$-staged training strategy: In the first $10^{6}$ agent-environment interactions, only the model is trained (together with the state representation encoder), and thus, the state representations are only shaped by the model's training losses (without the participation of RL signals). In the first stage, the agent relies on a uniformly random policy. After $10^{6}$ interactions, the agent freezes its state representation encoder as well as the model to carry out value estimator learning separately. Compared to CP or UP, the exploration scheme is delayed but unchanged.
+
+We are also curious about how the WM baseline would evolve after the $2.5\times 10^{6}$-step cutoff. For this, we provide an additional set of experiments featuring a ``free'' unsupervised learning phase of $10^{6}$ agent-environment interactions, essentially prolonging the runs of \textbf{WM} baselines by extra $10^{6}$ steps. As presented in Fig.~\ref{fig:free_unsupervised}, results suggest that \textbf{WM} could not achieve similar performance as that of CP, likely because the state representation is not jointly shaped for value estimation and thus cannot perform well enough for such purpose. The results show promise of the methodology of representation learning with joint signals. However, this is not to deny the usability and applicability of the world model methodology in general.
+
+\begin{figure}[htbp]
+\centering
+
+\subfloat[OOD, $\delta = 0.25$]{
+\captionsetup{justification = centering}
+\includegraphics[width=0.242\textwidth]{figures/CP/fig_OOD25_free_unsupervised.pdf}}
+\hfill
+\subfloat[OOD, $\delta = 0.35$]{
+\captionsetup{justification = centering}
+\includegraphics[width=0.242\textwidth]{figures/CP/fig_OOD35_free_unsupervised.pdf}}
+\hfill
+\subfloat[OOD, $\delta = 0.45$]{
+\captionsetup{justification = centering}
+\includegraphics[width=0.242\textwidth]{figures/CP/fig_OOD45_free_unsupervised.pdf}}
+\hfill
+\subfloat[OOD, $\delta = 0.55$]{
+\captionsetup{justification = centering}
+\includegraphics[width=0.242\textwidth]{figures/CP/fig_OOD55_free_unsupervised.pdf}}
+
+\caption[Extended Run to Demonstrate the OOD Performance Differences of CP and WM agents]{\textbf{Extended Run to Demonstrate the OOD Performance Differences of CP and WM agents}: for fair comparison, WM(8) is the WM variant which uses the same architecture as CP(8). Results of WM(8) are shifted along the $x$-axes for a free unsupervised world model learning phase of $10^6$ steps. All error bars are obtained from $20$ independent seed runs.}
+\label{fig:free_unsupervised}
+\end{figure}
+
+\subsubsection{\texorpdfstring{\Dyna{}}{Dyna}}
+As usual, for fair comparison, \Dyna{} baselines share the model-free part of the architecture as CP or UP. The models used by the \Dyna{} baselines are powered by the proposed set-to-set architecture, working on the observation-level. For each sampled batch of transitions, we feed the sampled current observations and actions to the \Dyna{} model to generate imagined next observations and train additionally on this second batch.
+
+\subsubsection{\texorpdfstring{\NOSET{}}{NOSET}}
+The \NOSET{} baseline utilizes traditional vectorized representations. We use the CNN feature extractor before the encoder, but instead of transforming the feature map into a set, we flatten it and then linearly project it to some specific dimensionality ($256$), which will be used as the vectorized state representation, similar to most existing DRL practices. Since all set-based operations would now be improper for the vectorized representation, they are substituted with $3$-layered, $512$-wide MLPs. The dimension of the vectorized state representation, the widths, and the depths of the FC layers are optimized through coarse grid tuning. We find that architectures exceeding the chosen size are hardly superior in terms of performance.
+
+To maximize the performance of this baseline, we designed a  $2$-layered dynamics model, which employ a residual connection, with the expectation that the model might learn incremental changes in the dynamics. We first verified the competence of this baseline on a classical mono-task setting, as shown in Fig.~\ref{fig:noset_static}. However, to a degree as expected, in our experiments with randomly generated environments for each episode (the ``multi-task setting''), the \NOSET{} baseline performs miserably.
+
+
+\begin{SCfigure}[][htbp]
+\includegraphics[width=0.45\textwidth]{figures/CP/fig_noset_static.pdf}
+\caption[NOSET Baseline Performance on Multitask and Monotask Settings]{\textbf{\NOSET{} Baseline Performance on Multitask and Monotask Settings}: Each band is consisted of the mean curve and the confidence interval shades obtained from $20$ independent seed runs.}
+\label{fig:noset_static}
+\end{SCfigure}
+
+\subsection{Summary of Experiments}
+The experimental results allow us to draw the following conclusions, within the scope of our experimental setting:
+
+\begin{itemize}[leftmargin=*]
+\item Set-based representations enable at least in-distribution generalization across different environment instances in our OOD-oriented multi-task setting, where the agents are forced to discover dynamics that are preserved across environments;
+\item Model-free methods seem to rely more on memorization instead of understanding, as they face more difficulties in OOD evaluation scenarios, which emphasizes systematic generalization;
+\item Decision-time MPC exhibits better performance than \Dyna{} in the tested OOD generalization settings;
+\item Online joint training of the representation with all the relevant signals could bring benefits to RL, as suggested in \citet{jaderberg2016unreal}.
+\item In accordance with our intuition, transition models with bottlenecks tend to learn dynamics better in our tests;
+\item
+From further experiments, we observe that bottleneck-equipped agents may also be less affected by larger size environments with more encoded objects, possibly due to their prioritized learning of interesting entities.
+\end{itemize}
+
+\section{Summary}
+
+In this chapter, we introduced a consciousness-inspired bottleneck mechanism into model-based RL, facilitated by set-based representations, end-to-end learning and tree search MPC. In the multi-task systematic generalization-focused settings, the bottleneck allows selecting the relevant objects for planning and hence enables significant OOD performance.
+
+The proposed bottleneck mechanism will be extended for spatial abstraction, a foundation of Chap.~\ref{cha:skipper}.

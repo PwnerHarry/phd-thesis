@@ -1,0 +1,140 @@
+\chapter*{Nomenclature \& Indices}
+\label{cha:nomenclature}
+\addcontentsline{toc}{chapter}{\nameref{cha:nomenclature}}
+
+\section*{Terminologies \& Abbreviations}
+\label{cha:nomen_terminologies}
+
+For the readers' convenience in cross-referencing, the rows are sorted alphabetically and some terms defined in the following list are highlighted in \textbf{bold}.
+
+\addcontentsline{toc}{section}{\nameref{cha:nomen_terminologies}}
+
+\begin{longtable*}{m{0.2\textwidth} m{0.8\textwidth}}
+\textbf{Agent} & \parbox[t]{0.8\textwidth}{An entity that makes decisions and takes actions in an environment. Often refers to the computational methods.} \\
+
+\textbf{Actor-Critic} & \parbox[t]{0.8\textwidth}{A reinforcement learning algorithm with two components: one for taking action (actor) and one for value estimation (critic). See Sec.~\ref{sec:actor_critic} on Page.~\pageref{sec:actor_critic}.} \\
+
+\textbf{Attention} & \parbox[t]{0.8\textwidth}{A mechanism allowing computations to focus on parts of the input. See Sec.~\ref{sec:attention} on Page.~\pageref{sec:attention}.} \\
+
+\textbf{Auxiliary} & \parbox[t]{0.8\textwidth}{Additional tasks or information used to assist a model. We use the term ``auxiliary learners'' to describe components in a reinforcement learning agent that do not conduct \textbf{value estimation}. See Sec.~\ref{sec:RL_agent_components} on Page.~\pageref{sec:RL_agent_components} and Sec.~\ref{sec:auxiliary_learners} on Page.~\pageref{sec:auxiliary_learners}.} \\
+
+\textbf{Background Planning} & \parbox[t]{0.8\textwidth}{A planning behavior that does not immediately improve an agent's next decision \citep{alver2022understanding}.} \\
+
+\textbf{Baseline} & \parbox[t]{0.8\textwidth}{An existing method used as a reference point for the performance of new methods. When a new agent is proposed, existing agents can serve as baselines. When a variant of an agent is proposed, the agent (in its original form) should serve as the baseline.} \\
+
+\textbf{Behavior Policy} & \parbox[t]{0.8\textwidth}{An agent's adopted policy when interacting with the environment. Introduced in  Sec.~\ref{sec:off_policy_evaluation} on Page.~\pageref{sec:off_policy_evaluation} to differentiate with the target policy.} \\
+
+
+\textbf{Bottleneck} & \parbox[t]{0.8\textwidth}{A point in a system that limits overall performance. Chap.~\ref{cha:CP} contributes a bottleneck mechanism limiting the number of objects that the model could \textbf{reason} with at decision time (Chap.~\ref{cha:CP} on Page.~\pageref{cha:CP}).} \\
+
+\textbf{Checkpoints} & \parbox[t]{0.8\textwidth}{Saved snapshots of model parameters, agent or environment states, containing complete information with which the previous behaviors could be resumed. Chap.~\ref{cha:skipper} uses checkpoints to differentiate \textit{the subset of states imagined by the generative model} from regular states, while also emphasizing their info-completeness (Sec.~\ref{sec:skipper_proxy_problem}, Page.~\pageref{sec:skipper_proxy_problem}).} \\
+
+\textbf{Consciousness} & \parbox[t]{0.8\textwidth}{A capability that refers to agents that can act with awareness of the states of the world and the states of the self.} \\
+
+\textbf{Consciousness in the \nth{1} Sense (C1)} & \parbox[t]{0.8\textwidth}{A capability allowing humans to act with awareness of the relevant environmental entities \citep{dehane2017consciousness}. C2 refers to the awareness of the self.} \\
+
+\textbf{Decision Point} & \parbox[t]{0.8\textwidth}{A specific state or point in time where an agent needs to make a decision.} \\
+
+\textbf{Decision-Time} & \parbox[t]{0.8\textwidth}{The moment when an agent must make a decision about how to act next} \\
+
+\textbf{Decision-Time Planning} & \parbox[t]{0.8\textwidth}{The behavior of planning at \textbf{decision-time} to reason about the decision that is to be made imminently \citep{alver2022understanding}.} \\
+
+\textbf{Deep Learning} & \parbox[t]{0.8\textwidth}{A subset of machine learning using more-than-one layer of artificial neural networks to establish learning systems \citep{goodfellow2016deep}.} \\
+
+\textbf{Delusions} & \parbox[t]{0.8\textwidth}{Obviously false ideas / beliefs which an agent is unable to reject. Reflects a pathology in the learning system \citep{kiran2009understanding}.} \\
+
+\textbf{Delusional Planning Behaviors} & \parbox[t]{0.8\textwidth}{Behaviors triggered by an agent's delusions. Describes agents' often erratic actions while seeking to achieve infeasible targets (Chap.~\ref{cha:delusions}, Page.~\pageref{cha:delusions}).} \\
+
+\textbf{Discrete Action Space} & \parbox[t]{0.8\textwidth}{A set of distinct, countable actions decision-making agents can choose from.} \\
+
+\textbf{Dynamics} & \parbox[t]{0.8\textwidth}{The rules and processes governing the state transitions of an environment.} \\
+
+\textbf{Episode} & \parbox[t]{0.8\textwidth}{A single run or sequence of interactions between an agent and an environment, from start to finish. Often marked with an initial and a terminal state.} \\
+
+\textbf{Environment} & \parbox[t]{0.8\textwidth}{The external world with which decision-making agents interact and draw observations, perhaps rewards. See Fig.~\ref{fig:agent_environment_interaction} on Page.~\pageref{fig:agent_environment_interaction}.} \\
+
+\textbf{Estimator} & \parbox[t]{0.8\textwidth}{A model or method used to estimate certain quantities, like \textbf{value estimators} that estimate \textbf{value functions} in reinforcement learning.} \\
+
+\textbf{Evaluator} & \parbox[t]{0.8\textwidth}{In Chap.~\ref{cha:delusions}, this refers to an estimator used to produce an estimate indicating whether a target is feasible, named after the belief evaluation system in the human brain \citep{kiran2009understanding}. See Sec.~\ref{sec:delusions_intro} on Page.~\pageref{sec:delusions_intro}.} \\
+
+\textbf{Generator} & \parbox[t]{0.8\textwidth}{A model or process that produces data. In Chap.~\ref{cha:delusions}, it refers to the component that proposes targets for the agent to reason with, named after the brain's belief formation system \citep{kiran2009understanding}. See Sec.~\ref{sec:delusions_intro} on Page.~\pageref{sec:delusions_intro}.} \\
+
+\textbf{Goal} & \parbox[t]{0.8\textwidth}{A desired outcome an agent seeks to achieve. Discussed in Chap.~\ref{cha:basics} on Page.~\pageref{cha:basics}.} \\
+
+\textbf{Gridworld} & \parbox[t]{0.8\textwidth}{A grid-based environment used for evaluating agents. Agents move from one cell to another by taking navigation actions, and possibly interacts with objects located in certain cells.} \\
+
+\textbf{Hallucination} & \parbox[t]{0.8\textwidth}{The behavior of generating nonfactual beliefs.} \\
+
+\textbf{Intuition} & \parbox[t]{0.8\textwidth}{Describes \textbf{estimators}' inexplicable knowledge, also the ability to make fast predictions without reasoning. Correspond to System-1 \citep{daniel2017thinking}.} \\
+
+\textbf{KL-Divergence} & \parbox[t]{0.8\textwidth}{The Kullback–Leibler (KL) divergence, \aka{} relative entropy, is a measure of the difference between two probability distributions. Formally, it is defined as: $D_{\mathrm{KL}}(P \| Q) = \sum_{x} P(x) \log \frac{P(x)}{Q(x)}$. It can be used as a loss function to make the distributional output of a neural network closer to its \textbf{update targets}.} \\
+
+\textbf{Loss Function} & \parbox[t]{0.8\textwidth}{A function used to measure the quality of the output of a model, which can then  guide model training.} \\
+
+\textbf{Lookup Table} & \parbox[t]{0.8\textwidth}{A table used for quick retrieval of precomputed values.} \\
+
+\textbf{Macro Actions} & \parbox[t]{0.8\textwidth}{High-level actions that are sequences of smaller, simpler actions. See Sec.~\ref{sec:macro_actions} on Page.~\pageref{sec:macro_actions}.} \\
+
+\textbf{Model-Based RL} & \parbox[t]{0.8\textwidth}{A type of reinforcement learning assisted by predictive / generative models. See Sec.~\ref{sec:model_basedL_drl} on Page.~\pageref{sec:model_basedL_drl}.} \\
+
+\textbf{Optimizer} & \parbox[t]{0.8\textwidth}{In the context of training parametric models with gradient-based methods, an algorithm used to optimize an objective function.} \\
+
+\textbf{Option} & \parbox[t]{0.8\textwidth}{A structured temporally extended action, sometimes representing a \textbf{macro-action}. See Sec.~\ref{sec:options} on Page.~\pageref{sec:options}.} \\
+
+\textbf{Oracle} & \parbox[t]{0.8\textwidth}{A model established over ground truths that learning agents should no access to.} \\
+
+\textbf{Planning} & \parbox[t]{0.8\textwidth}{The reasoning process of deciding what actions to take in the relative future. See Sec.~\ref{sec:planning} on Page.~\pageref{sec:planning}.} \\
+
+\textbf{Policy} & \parbox[t]{0.8\textwidth}{The mechanism that defines how an agent would act given different environmental states. See Sec.~\ref{sec:policies_values} on Page.~\pageref{sec:policies_values}.} \\
+
+\textbf{Priority} & \parbox[t]{0.8\textwidth}{An ordering determining which work is to be done first. Tree search algorithms use priority queues to determine which branch of the search tree is to be simulated next. See Sec.~\ref{sec:MPC} on Page.~\pageref{sec:MPC}.} \\
+
+\textbf{Proxy Problem} & \parbox[t]{0.8\textwidth}{A simplified version of a problem used as a proxy of the full problem. Chap.~\ref{cha:skipper} uses proxy problems as a way to decompose Markov decision processes. See Sec.~\ref{sec:skipper_proxy_problem} on Page.~\pageref{sec:skipper_proxy_problem}.} \\
+
+\textbf{Reasoning} & \parbox[t]{0.8\textwidth}{The ability of an AI system to infer new information based on available knowledge. \textbf{Planning} is a form of reasoning.} \\
+
+\textbf{Regularization} & \parbox[t]{0.8\textwidth}{Techniques used in machine learning to prevent overfitting \citep{goodfellow2016deep}.} \\
+
+\textbf{Scalability} & \parbox[t]{0.8\textwidth}{The ability of a model or algorithm to handle increased amounts of data or complexity effectively. In Chap.~\ref{cha:skipper}, we tested the agents' generalization abilities with increasing numbers of training task instances. See Sec.~\ref{sec:skipper_exp} on Page.~\pageref{sec:skipper_exp}.} \\
+
+\textbf{Semi-Hard Attention} & \parbox[t]{0.8\textwidth}{A variant of \textbf{attention} mechanism, where the attention weights are continuous but can take the discrete value $0$ to fully rule out some choices.  See Sec.~\ref{sec:semihard_attention} on Page.~\pageref{sec:semihard_attention}.} \\
+
+\textbf{Source-Target Pairs} & \parbox[t]{0.8\textwidth}{Pairs of data where one element is used as the source (input) and the other as the target (desired output) in learning. In Chap.~\ref{cha:delusions}, we use \textbf{source-target pairs} to differentiate how \textbf{TAP agents} learn based on two decision points, to learn the relationship between a source state and a target. See Sec.~\ref{sec:source_target_pair_hindsight_relabeling} on Page.~\pageref{sec:source_target_pair_hindsight_relabeling} and Chap.~\ref{cha:delusions} on Page.~\pageref{cha:delusions}.} \\
+
+\textbf{Spatial Abstraction} & \parbox[t]{0.8\textwidth}{A computational description of \textbf{consciousness in the \nth{1} sense}. Refers to an agent's ability to focus on partial aspects of the state for decision-making. Spatial abstraction is a special, dynamic, intention-dependent form of state abstraction. Named intuitively to differentiate from generic state abstraction and to rhyme with temporal abstraction.} \\
+
+\textbf{State Representation} & \parbox[t]{0.8\textwidth}{An encoding of the state of the \textbf{environment}, used by agents' policies for decision-making. See Sec.~\ref{sec:state_representations} on Page.~\pageref{sec:state_representations}.} \\
+
+\textbf{System-2} & \parbox[t]{0.8\textwidth}{A mode of computation in the human brain that involves deliberate, slow, and logical \textbf{reasoning} on-the-fly, as opposed to \textbf{intuition}-based System-1 thinking \citep{daniel2017thinking}.} \\
+
+\textbf{Target} & \parbox[t]{0.8\textwidth}{An abbreviation of a ``state target''. Chap.~\ref{cha:delusions} uses targets to refer to the observations or states or sets of states generated by the model of a planning agent that can be used to guide its behaviors. Targets correspond to a set of states that agents seek to achieve. Note that a \textbf{target state} instead corresponds to a singleton target, \ie{}, a target of a single state. See Sec.~\ref{sec:source_target_pair_hindsight_relabeling} on Page.~\pageref{sec:source_target_pair_hindsight_relabeling} and Chap.~\ref{cha:delusions} on Page.~\pageref{cha:delusions}.} \\
+
+\textbf{Target-Assisted Planning (TAP)} & \parbox[t]{0.8\textwidth}{Target-Assisted Planning (TAP) is a methodology of decision-making agents that generate \textbf{targets} during planning. See Sec.~\ref{sec:source_target_pair_hindsight_relabeling} on Page.~\pageref{sec:source_target_pair_hindsight_relabeling} and Chap.~\ref{cha:delusions} on Page.~\pageref{cha:delusions}.} \\
+
+\textbf{Top-$k$} & \parbox[t]{0.8\textwidth}{A technique often used in machine learning to focus on the top $k$ results of a search or model, based on certain criteria. A top-$k$ mechanism is used to implement \textbf{semi-hard attention}. See Sec.~\ref{sec:semihard_attention} on Page.~\pageref{sec:semihard_attention}.} \\
+
+\textbf{Transition} & \parbox[t]{0.8\textwidth}{A change in the environment's state due to an agent's action. Specifically in reinforcement learning, it refers to a data structure resembling $\langle s, a, r, s' \rangle$, where $s$ and $s'$ are two consecutive environmental states, where the transition between them is triggered by the agent taking action $a$, and  $r$ is the immediate reward received. See Sec.~\ref{sec:MDP} on Page.~\pageref{sec:MDP}.} \\
+
+\textbf{Trajectory} & \parbox[t]{0.8\textwidth}{A sequence of states, actions, and environmental feedbacks an agent experiences during an episode. See Sec.~\ref{sec:MDP} on Page.~\pageref{sec:MDP}.} \\
+
+\textbf{Update Target} & \parbox[t]{0.8\textwidth}{The target towards which an update of an estimate is made. For example, in Sec.~\ref{sec:TD_learning} (Page.~\pageref{sec:TD_learning}), we discussed how temporal difference learning constructs its update targets.}\\
+
+\textbf{Value} & \parbox[t]{0.8\textwidth}{A measure of the desirability of a state or state-action pair in reinforcement learning, defined as expected return. See Sec.~\ref{sec:policies_values} on Page.~\pageref{sec:policies_values}.} \\
+
+\textbf{Value Estimate} & \parbox[t]{0.8\textwidth}{An approximation of the \textbf{value}, learned by a \textbf{value estimator}. See Sec.~\ref{sec:RL_agent_components} on Page.~\pageref{sec:RL_agent_components}.} \\
+
+\textbf{Value Function} & \parbox[t]{0.8\textwidth}{A function that outputs the \textbf{value} of a given state in RL. Defined in Sec.~\ref{sec:policies_values} on Page.~\pageref{sec:policies_values}.} \\
+
+\textbf{Vanilla} & \parbox[t]{0.8\textwidth}{A term often used to describe basic versions of ice-creams and algorithms.} \\
+
+
+
+\textbf{World Model} & \parbox[t]{0.8\textwidth}{A model that represents the agent's understanding of the environment, used for planning and decision-making. Specifically, in Chap.~\ref{cha:CP}, it is used to refer to a model-based planning methodology proposed in \citet{ha2018world}, which trains a model of the environment independently of any rewards, through an unsupervised exploration stage. See Sec.~\ref{sec:world_models} on Page.~\pageref{sec:world_models}.} \\
+
+\end{longtable*}
+
+
+\listoffigures %
+\addcontentsline{toc}{section}{\listfigurename}
+\listoftables
+\addcontentsline{toc}{section}{\listtablename}

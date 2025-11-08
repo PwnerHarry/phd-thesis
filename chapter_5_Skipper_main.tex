@@ -1,0 +1,457 @@
+\chapter{Skipper Framework: Spatio-Temporal Abstractions for Planning}
+\label{cha:skipper}
+{\small
+Some materials of this chapter had been used to form \citet{zhao2024consciousness}, which was published as a short-form conference paper in International Conference on Learning Representations (ICLR), 2024. % \textit{Following the McGill's guidelines on traditional thesis, this chapter is NOT in the form of a manuscript and focuses on the complete presentation of methodology and findings of the corresponding thesis research milestone, which is different from \citet{zhao2024consciousness}. Comprehensive discussions of contributions, limitations, encompassing all methodologies and findings of all thesis milestones will be conducted in Chap.~\ref{cha:conclusion}.}
+}
+
+\minitoc
+
+\section{Overview of This Thesis Milestone}
+
+\textit{Inspired by the humans' abstract planning behaviors, my collaborators and I propose \Skipper{}, an RL / planning framework using both spatial and temporal abstractions organically to generalize better in novel situations. \Skipper{} automatically decomposes the given task into smaller, more manageable sub-tasks, and thus enables sparse decision-making and focused computation on the relevant parts of the environment. \Skipper{}'s task decomposition relies on the extraction of a ``proxy problem'', represented as a directed graph, in which vertices and edges are learned end-to-end from hindsight. Our theoretical analyses provide performance guarantees under appropriate assumptions and establish where our approach is expected to be helpful. Our carefully controlled experiments validate \Skipper{}'s significant advantage in zero-shot generalization, compared to some existing state-of-the-art hierarchical planning methods.}
+
+Human abstract planning can attend to relevant aspects in both time and space. This kind of planning could competently break down long-horizon tasks into smaller scale and more manageable steps, each of which can be narrowed down even more. From the previously introduced perspective of consciousness in the first sense (C1) \citep{dehane2017consciousness}, this type of planning focuses attention on mostly the important decision points \citep{sutton1999between} and relevant environmental aspects \citep{tang2020neuroevolution}, thus \textit{operating abstractly both in time and in space}.
+
+In contrast, existing RL agents either operate solely based on intuition (``system-1'', model-free methods) or are limited to reasoning over mostly relatively shortsighted plans (rudimentary ``system-2'', model-based methods, including the CP agent in the previous chapter) \citep{daniel2017thinking}. These intrinsic design limitations hinder the agents' real-world application, which demands robustness against generalization challenges \citep{mendonca2020meta}.
+
+Building on intuitions gathered from our previous work on conscious planning (Chap. \ref{cha:CP}), we develop a planning framework, named \Skipper{}, that plans while skipping over unnecessary details in both space and time, seeking to decompose the complex task at hand into smaller sub-tasks, by constructing ``proxy problems''. A proxy problem can be viewed as a simplified version of the given task, and is represented as a graph where 1) the vertices consist of states imagined by a generative model, corresponding to sparse decision points; and 2) the edges, which define temporally-extended transitions, are constructed by focusing on a small amount of relevant information from the states, using an attention mechanism heavily investigated in the previous chapter. Once a proxy problem is constructed and the agent solves it to form a plan, each edge will define a new sub-problem, on which the agent will focus solving next. While granting agents the flexibility to construct necessary abstractions for the problem at hand, the divide-and-conquer strategy based on proxy problems allows constructing ``partial'' solutions that generalize better to novel situations. Our theoretical analyses tie the quality of the solution to the proxy problem to the solution of the overall problem, making the \Skipper{} framework distinguish itself as a principled approach.
+
+For experiments, we use an implementation of the \Skipper{} framework to demonstrate its advantages in terms of out-of-training-distribution generalization. These experiments are conducted on a more refined multi-task, systematic generalization focused setting, where the agents are only trained on limited few task instances but are expected to be evaluated in a range of OOD scenarios in a zero-shot fashion. The detailed and controlled experiments that the proposed framework, in most cases performs significantly better in terms of zero-shot generalization, compared to the baselines and to some state-of-the-art hierarchical planning methods \citep{nasiriany2019planning,hafner2022deep}.
+
+\section{Methodology: Proxy Problems}
+\label{sec:skipper_proxy_problem}
+
+\subsection{Definition}
+Central to the temporal and spatial abstraction abilities of the proposed \Skipper{} framework, proxy problems are utilized to handle task decomposition. Representing simplified versions of the more complicated given tasks, proxy problems are proxies for solving the more complicated given tasks. Each solution of the proxy problem is equivalent to a plan that can be carried out in the original problem. While, each step of the plan is a sub-problem in the original problem.
+
+Proxy problems are sparse graphs constructed at decision-time, whose vertices are states and whose (directed) edges estimate transition statistics between the vertices, as shown in Fig.~\ref{fig:proxy_problem}. For clarity, we call the states selected to be (or proposed by the generator to be) vertices of the proxy problems \textbf{checkpoints}, to differentiate them from other uninvolved states. Note that the current state should always be included as one of the vertices. At decision-time, during evaluation, the checkpoints are proposed by a generative model, a \textbf{generator}, and represent some states that the agent might experience in the current episode, often denoted as $S^\odot$ in this chapter. Each edge is annotated with estimates of the cumulative discount and reward associated with the transition between the connected checkpoints; these estimates are learned over the \textbf{relevant} aspects of the environment (``spatially-abstract'') and \textbf{depend} on the agent's capability (``capability-aware''). As the low-level policy responsible for solving the sub-problems (implementing the transitions from one checkpoint to the next) improves, the edges strengthen.
+
+Planning in a proxy problem is by design temporally abstract, since the sub-problems are defined as the transitions between pairs of checkpoints, which are sparse decision points. Handling each checkpoint transition is also by design spatially abstract, as an option corresponding to such a task would base its decisions only on some aspects of the environment relevant to the sub-problem at hand \citep{konidaris2009efficient,bengio2017consciousness}, leading to improved generalization as well as computational efficiency \citep{zhao2021consciousness}. In the language of probabilistic modelling, the proxy problems alleviate the difficulties of long horizon planning by \textit{marginalizing the change of more irrelevant aspects} of the space and time within trajectories, and \textit{constraining the options} \st{}, the changes that matter to the objective are simpler to predict \citep{bengio2017consciousness}.
+
+\begin{figure}[htbp]
+\centering
+\subfloat[\RDS{} Instance]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.4\textwidth]{figures/Skipper/fig_proxy_problem_base.png}}
+% \hfill
+\subfloat[Proxy Problem]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.4\textwidth]{figures/Skipper/fig_proxy_problem.pdf}}
+
+\caption[A Proxy Problem on an \RDS{} Task]{\textbf{A Proxy Problem Proposed by \Skipper{} on an \RDS{} Task}: the MDP of the \gray{original problem} is in colored gray and the terminal states (the lava grids and the goal) are marked with squares. The overall objective of the task is to navigate from the \red{red} position, to the goal (\darkgreen{green}). As shown, distant goals can be reached by leveraging a proxy problem, which can lead to a plan that involves hopping through a series of checkpoints (\orange{orange}).}
+\label{fig:proxy_problem}
+\end{figure}
+
+Proxy problems can be formally described in the language of SMDPs (Sec.~\ref{sec:SMDP}, Page.~\pageref{sec:SMDP}), where each directed edge is implemented as a checkpoint-conditioned option. Thus, edges in a proxy problem can be defined by the discount and reward matrices \blue{$\Gamma^\pi$} and \darkgreen{$V^\pi$}, where \blue{$\gamma^\pi_{ij}$} and \darkgreen{$v^\pi_{ij}$} are defined as:
+\begin{align}
+    \blue{\gamma^\pi_{ij}} &\coloneqq \mathbb{E}_\pi\left[\gamma^{T_\perp} | S_0=s_i, S_{T_\perp}=s_j\right] \\
+    \darkgreen{v^\pi_{ij}} &\coloneqq \textstyle\mathbb{E}_\pi\left[\sum_{t=0}^{T_\perp} \gamma^t R_t | S_0=s_i, S_{T_\perp}=s_j\right]
+\end{align}
+
+\subsection{Potential of Proxy Problems}
+\label{sec:perf_guarantee}
+
+By planning with \blue{$\Gamma^\pi$} and \darkgreen{$V^\pi$}, \eg{}, using SMDP value iteration \citep{sutton1999between}, we can form a plan that hops through the checkpoints in the proxy problem, while simultaneously traveling among states in the original problem.
+
+But why should we use this methodology? What could be the advantage? The following results establish that if the proxy problems can be estimated well (Condition \ref{eq:estimation_condition}), the obtained plan via the proxy problem will be a good quality solution for the original problem (Bound \ref{eq:composite_bound}):
+
+\begin{coloredtheorem}{Performance under Proxy Problems}{proxyprobsperf}
+Let $\mu$ be the SMDP policy (high-level planner that solves the proxy problems and produce a plan) and \red{$\pi$} be the low-level policy (that implements the sub-problems of transitioning from one checkpoint to another). Let \darkgreen{$\hat{V}^\pi$} and \blue{$\hat{\Gamma}^\pi$} denote learned estimates defining the edges of the proxy problem. If their estimation accuracy satisfies:
+\begin{align}
+\label{eq:estimation_condition}
+    & |\darkgreen{v^\pi_{ij}}-\darkgreen{\hat{v}^\pi_{ij}}|<\epsilon_v  v_{\text{range}} \ll (1-\gamma)  v_{\text{range}} & \text{\textbf{and}}\\
+    & \quad\quad |\blue{\gamma^\pi_{ij}} -\blue{\hat{\gamma}^\pi_{ij}}|<\epsilon_\gamma\ll (1-\gamma)^2 & \forall i,j. \nonumber
+\end{align}
+Then, the estimated value of the composite $\hat{v}_{\mu \circ \pi}(s)$ is accurate up to error terms linear in $\epsilon_v$ and $\epsilon_\gamma$:
+\begin{align}
+\label{eq:composite_bound}
+    \hat{v}_{\mu \circ \pi}(s) &\coloneqq \sum_{k=0}^\infty \hat{v}_\pi(s_k^\odot |{s}_{k+1}^\odot ) \prod_{\ell=0}^{k-1}\hat{\gamma}_\pi (s_\ell^\odot | s_{\ell+1}^\odot ) = v_{\mu \circ \pi }(s) \pm \frac{\epsilon_v  v_{\text{range}}}{1-\gamma} \pm \frac{\epsilon_\gamma v_{\text{range}}}{(1-\gamma)^2}  + o(\epsilon_v+\epsilon_\gamma)
+\end{align}
+where \darkgreen{$\hat{v}_\pi(s_i | s_j )\equiv \hat{v}^\pi_{ij}$} and \blue{$\hat{\gamma}_\pi(s_i | s_j ) \equiv \hat{\gamma}^\pi_{ij}$}, and $v_{\text{range}} \coloneqq v_{\text{max}} - v_{\text{min}}$ denotes the range of values, \ie{}, the maximum possible value minus the minimum possible value.
+\end{coloredtheorem}
+
+\begin{proof}
+
+% We are going to denote the expected cumulative discounted reward, \aka{} the state-action value with $q_\pi \coloneqq \mathbb{E}_\pi[V]$, and let $\hat{q}_\pi$ be our estimate for it. We are also going to consider the state value $v_\pi(s|s^{\odot}) \coloneqq \sum_a \pi(a|s,s^{\odot})q_\pi(s,a|s^{\odot})$ and its estimate $\hat{v}_\pi$. Similarly, we denote the expected cumulative discount with $\gamma_\pi\coloneqq \mathbb{E}_\pi[\Gamma]$ and its estimate with $\hat{\gamma}_\pi$.
+
+Before anything, we need to acknowledge that we are in the presence of a hierarchical structure involving two policies. The high level policy $\mu$ determines (potentially) stochastically a sequence of checkpoints to form a plan. The low-level policy \red{$\pi$} is assumed to be evolving throughout training, and fixed for the moment. The composite policy $\mu\circ\pi$ is non-Markovian: it depends both on the current state and the current target checkpoint. Thus, there is no notion of a classical ``state value'', except when the agent arrives at a checkpoint, \ie{}, when a high level action (checkpoint selection) needs to be chosen.
+
+To simplify the proof that proceeds further, we adopt the view that discounts can be implemented equivalently with sudden termination probabilities. In this equivalent view, $v_\pi$ denotes the undiscounted expected sum of reward before reaching the next checkpoint, and more interestingly $\gamma_\pi$ denotes the binomial random variable of non-termination during a sub-problem, \ie{}, the transition to the selected checkpoint.
+
+% Making the following assumption that the trajectory terminates almost surely when reaching the goal, \ie{}, $\gamma_\pi(s_i,s_g)=0, \forall s_i$, the gain (cumulative return) $V$ can be written as:
+
+With the above in mind, we can write the gain (in undiscounted cumulated rewards) $V$ from the initial checkpoint $S_0^{\odot}$ as:
+
+\begin{align}
+V = V(S_0^{\odot}|S_1^{\odot})+\Gamma(S_0^{\odot}|S_1^{\odot}) V_1 =  \sum_{k=0}^\infty V(S_k^{\odot}|S_{k+1}^{\odot}) \prod_{i=0}^{k-1}\Gamma(S_i^{\odot}|S_{i+1}^{\odot}),
+\end{align}
+
+where $S_{k+1} \sim \mu(\cdot|S_k)$, $V(S_k^{\odot}|S_{k+1}^{\odot})$ is the random variable of gain during the transition from $S_k^{\odot}$ to $S_{k+1}^{\odot}$, and the random variable $\Gamma(S_k^{\odot}|S_{k+1}^{\odot})$ can take a value of either $0$ or $1$, depending on whether the trajectory terminated prematurely or reached $S_{k+1}^{\odot}$.
+
+% If we consider $\mu$ as a deterministic planning routine over the checkpoints, then 
+
+It should be clear that the action space of $\mu$ is the a list of checkpoints $\{s^{\odot}_0=s_0, s^{\odot}_1, s^{\odot}_2, \cdots \}$ in the same proxy problem. % s^{\odot}_n=s_g
+%Thanks to the Markovian property in checkpoints, we have independence between $V_\pi$ and $\Gamma_\pi$, therefore 
+Thus, for the expected (ground truth) value of $\mu\circ\pi$, taking the expectation of $V_0$, we have:
+\begin{align}
+    v_{\mu\circ\pi}(s_0) \coloneqq \mathbb{E}_{\mu\circ\pi}[V|S_0=s_0]=  \sum_{k=0}^\infty v_\pi(s^{\odot}_k|s^{\odot}_{k+1}) \prod_{i=0}^{k-1}\gamma_\pi (s^{\odot}_i|s^{\odot}_{i+1})  
+\end{align}
+
+Having obtained the ground truth value, in the following, we are going to consider the estimates with small error terms:
+\begin{align}
+    |v_\pi(\cdot)-\hat{v}_\pi(\cdot)|<\epsilon_v  v_{\text{max}} \ll (1-\gamma)  v_{\text{max}} \quad\quad\text{and}\quad\quad |\gamma_\pi(\cdot)-\hat{\gamma}_\pi(\cdot)|<\epsilon_\gamma\ll (1-\gamma)^2 
+\end{align}
+
+To simplify the algebra, we assume without loss of generality that all rewards are non-negative, \st{}, the values are guaranteed to be non-negative as well. Note that the assumption for the reward function to be non-negative is only a cheap trick to ensure we bound in the right direction of $\epsilon_\gamma$ errors in the discounting, but that the theorem would still stand if it were not the case: simply replace $v_{\text{max}}$ with $v_{\text{max}} - v_{\text{min}}$). With the assumption, we can write the upper bound as:
+
+\begin{align}
+    &\ \hat{v}_{\mu\circ\pi}(s) \coloneqq \sum_{k=0}^\infty \hat{v}_\pi(s^{\odot}_k|s^{\odot}_{k+1}) \prod_{i=0}^{k-1}\hat{\gamma}_\pi (s^{\odot}_i|s^{\odot}_{i+1})  \\
+    &\leq \sum_{k=0}^\infty \left(v_\pi(s^{\odot}_k|s^{\odot}_{k+1})+\epsilon_v  v_{\text{max}}\right) \prod_{i=0}^{k-1}\left(\gamma_\pi(s^{\odot}_i|s^{\odot}_{i+1})+\epsilon_\gamma\right)  \\
+    &\leq v_{\mu\circ\pi}(s) + \sum_{k=0}^\infty \epsilon_v  v_{\text{max}} \prod_{i=0}^{k-1}\left(\gamma_\pi(s^{\odot}_i|s^{\odot}_{i+1})+\epsilon_\gamma\right) + \sum_{k=0}^\infty \left(v_\pi(s^{\odot}_k|s^{\odot}_{k+1})+\epsilon_v v_{\text{max}}\right) k\epsilon_\gamma\gamma^k + o(\epsilon_v+\epsilon_\gamma)  \\
+    &\leq v_{\mu\circ\pi}(s) + \epsilon_v  v_{\text{max}} \sum_{k=0}^\infty  \gamma^k + \epsilon_\gamma v_{\text{max}} \sum_{k=0}^\infty k\gamma^k  + o(\epsilon_v+\epsilon_\gamma) \\
+    &\leq v_{\mu\circ\pi}(s) + \frac{\epsilon_v  v_{\text{max}}}{1-\gamma} + \frac{\epsilon_\gamma v_{\text{max}}}{(1-\gamma)^2}  + o(\epsilon_v+\epsilon_\gamma)
+\end{align}
+
+Similarly, we can derive a lower bound:
+\begin{align}
+    &\ \hat{v}_{\mu\circ\pi}(s) \coloneqq \sum_{k=0}^\infty \hat{v}_\pi(s^{\odot}_k|s^{\odot}_{k+1}) \prod_{i=0}^{k-1}\hat{\gamma}_\pi (s^{\odot}_i|s^{\odot}_{i+1})  \\
+    &\geq \sum_{k=0}^\infty \left(v_\pi(s^{\odot}_k|s^{\odot}_{k+1})-\epsilon_v  v_{\text{max}}\right) \prod_{i=0}^{k-1}\left(\gamma_\pi(s^{\odot}_i|s^{\odot}_{i+1})-\epsilon_\gamma\right)  \\
+    &\geq v_{\mu\circ\pi}(s) - \sum_{k=0}^\infty \epsilon_v  v_{\text{max}} \prod_{i=0}^{k-1}\left(\gamma_\pi(s^{\odot}_i|s^{\odot}_{i+1})-\epsilon_\gamma\right) - \sum_{k=0}^\infty \left(v_\pi(s^{\odot}_k|s^{\odot}_{k+1})-\epsilon_v v_{\text{max}}\right) k\epsilon_\gamma\gamma^k + o(\epsilon_v+\epsilon_\gamma)  \\
+    &\geq v_{\mu\circ\pi}(s) - \epsilon_v  v_{\text{max}} \sum_{k=0}^\infty  \gamma^k - \epsilon_\gamma v_{\text{max}} \sum_{k=0}^\infty k\gamma^k  + o(\epsilon_v+\epsilon_\gamma) \\
+    &\geq v_{\mu\circ\pi}(s) - \frac{\epsilon_v  v_{\text{max}}}{1-\gamma} - \frac{\epsilon_\gamma v_{\text{max}}}{(1-\gamma)^2}  + o(\epsilon_v+\epsilon_\gamma)
+\end{align}
+
+% We therefore conclude that $\hat{v}_{\mu\circ\pi}$ equals $v_{\mu\circ\pi}$ up to an accuracy of $\frac{\epsilon_v  v_{\text{max}}}{1-\gamma} + \frac{\epsilon_\gamma v_{\text{max}}}{(1-\gamma)^2}  + o(\epsilon_v+\epsilon_\gamma)$. 
+
+\end{proof}
+
+Let us carefully interpret and discuss the implication of the proved theorem:
+
+\subsubsection{No Assumption on Optimality}
+% Thm.~\ref{thm:proxyprobsperf} makes no assumption on \red{$\pi$}, since it would likely be difficult to learn a good \red{$\pi$} for far away targets. 
+
+The methodology of using proxy problems and the theorem above assume that it would be difficult to learn effectively a \red{$\pi$} for all sub-problems: when the target is too far, and that we would rather use a proxy to construct a path with shorter-distance transitions. Therefore, we never want to make any optimality assumption on \red{$\pi$}, otherwise our approach is pointless: %These theories we have initiated makes no assumption on \red{$\pi$}.
+If the low-level policy \red{$\pi$} is perfect, then the best high-level policy $\mu$ should always directly choose the task goal as target. A triangular inequality can be shown that with a perfect $\pi$ and a perfect estimate of $v_\pi$ and $\gamma_\pi$, the performance will always be optimal by selecting $s_1^\odot=s_g$. 
+
+The basis of divide-and-conquer strategies, including proxy problems in the \Skipper{} framework, is that learning an all-capable policy is difficult in practice. The lack of assumption here is very appropriate in our view.
+
+\subsubsection{Assumption on Checkpoint Feasibility}
+The analyses assumed that the target checkpoints are all feasible for convenience. While in reality (in the approximate RL setting without access to all states), since checkpoints need to be generated, the checkpoints could end up being hallucinated targets which cannot be achieved. To be able to handle this more realistic setting, the estimators responsible for estimating $\blue{\gamma^\pi}$ need to produce the correct estimate $0$. Such a problem is not unique to \Skipper{} and I will discuss this problem in great detail in Chap.~\ref{cha:delusions}.
+
+\subsubsection{Assumption of Estimation Accuracy \& Improving Low-Level Policy}
+
+Thm.~\ref{thm:proxyprobsperf} provides guarantees on the solution to the overall problem, whose quality depends on both the quality of the estimates (distances/discounts, rewards) and the quality of the policy. Note that the theorem guarantees accuracy to the solution of the overall problem conditioned on a snapshot of the current policy, which should evolve towards optimal during training. We need to interpret this carefully: 1) bad policies with good estimation will lead to an accurate yet potentially bad overall solution; 2) No matter the quality of the policy, with a bad estimation, it may result in a poor estimate of solutions; 3) It is expected that a near-optimal policy with good estimations will lead to a near-optimal solution.
+
+These amplify the necessity to be careful about if the learning rules for the estimates and the policy could converge to the correct values (Sec.~\ref{sec:justify_update_rules}, Page.~\pageref{sec:justify_update_rules}).
+
+\subsubsection{Applicable Scenarios due to Assumptions}
+Thm.~\ref{thm:proxyprobsperf} indicates that once the agent achieves high accuracy estimation of the model for the proxy problem and a near-optimal lower-level policy $\red{\pi}$, it converges toward optimal performance. 
+
+Despite the theorem's generality, in the experiments, we limit ourselves to the scope where the accuracy assumption can be met non-trivially, \ie{}, while avoiding degenerate proxy problems whose checkpoint transitions involve no rewards, that is, in tasks with sparse terminal rewards (\eg{}, \RDS{} and \SSM{}), where the goals are included as permanent vertices in the proxy problems. This is a case where the accuracy assumption can be met non-trivially, \ie{}, while avoiding degenerate proxy problems whose edges involve no rewards. Following Thm.~\ref{thm:proxyprobsperf}, we design the \Skipper{} framework to implement the construction and planning over proxy problems.
+
+In Sec.~\ref{sec:limitations_skipper} in Chap.~\ref{cha:conclusion} (Page.~\pageref{sec:limitations_skipper}), we will present some detailed discussion regarding the limitation brought by the assumptions used in the analyses.
+
+\section{Methodology: \texorpdfstring{\Skipper{}}{Skipper} Framework - Spatially \& Temporally Abstract Planning}
+We now look into the design of \Skipper{} - a framework that implements the task decomposition provided by \textbf{proxy} problems. The design of the framework has the following highlights:
+
+\begin{itemize}[leftmargin=*]
+    \item \textbf{Decision-time planning} is used for its ability to generalize better in novel situations;
+    \item \textbf{Spatio-temporal abstraction}: temporal abstraction breaks down the given task into smaller ones, while spatial abstraction over the state features improves local generalization;
+    \item \textbf{Higher quality proxies}: we introduce pruning techniques to improve the quality of sub-problems;
+    \item \textbf{Learning end-to-end from hindsight, off-policy}: to maximize sample efficiency and the ease of training, we propose to use auxiliary (off-)policy methods for edge estimation, and learn a context-conditioned checkpoint generation, both from hindsight experience replay;
+\end{itemize}
+
+Designing \Skipper{} requires solving two big problems, which are explained as follows, corresponding to the edges and the vertices of the proxy problems, respectively.
+
+\subsection{Problem 1: Edge Estimation}
+
+First, we discuss how \Skipper{} provides the edges needed to assemble the proxy problems. In this sub-section, we assume that the vertices of the proxy problems are already given. We start the discussions on edges because it is easier to understand and can provide intuitions about the more difficult problem of how \Skipper{} can construct the vertices of the proxy problems.
+
+%Edge estimation focuses on partial environmental state factors that are relevant to the sub-problem of checkpoint transition estimation and thus should be spatially abstract. 
+
+\subsubsection{Spatial Abstraction}
+\label{sec:skipper_spatial_abstraction}
+
+Each edge in the proxy problem defines a sub-problem. Some sub-problems are good and desirable, and some are not. Sub-problems are characterized by their locality: transitioning from one checkpoint to another often only involves limited few aspects of the environmental state. It is thus crucial to use inductive biases that can take advantage of the locality instead of using generic neural network architectures.
+
+To parallel with and differentiate from temporal abstraction, we call the behavior pattern of an agent to selectively focus on parts of the environment relevant for the sub-problem - ``spatial abstraction''. Spatial abstraction is thus core to the previous chapter.
+
+Inspired by conscious information processing in brains \citep{dehane2017consciousness}, the intuitions gathered in the previous chapter, and existing approach in \citet{sylvain2019locality}, we introduce a local perceptive field selector, $\sigma$, consisting of an attention bottleneck that (soft-)selects the top-$k$ local segments of the full state (\eg{}, a feature map by a typical convolutional encoder); all segments of the state compete for the $k$ attention slots, \ie{}, irrelevant aspects of state are discouraged or discarded, forming a \textit{partial} state representation \citep{mott2019towards,tang2020neuroevolution,zhao2021consciousness,alver2023minimal}. More specifically, this soft-selection mechanism is implemented using a top-down attention mechanism that queries the set of local receptive fields extracted by the CNN. The $h \times w \times c$ feature map is ``sliced'' and transformed into a set containing $h \times w$ local unordered feature objects, each of dimension $c$, with each of these vectors being a local receptive field on top of a local patch of the observation (while in Chap.~\ref{cha:CP}, each vector maps to exactly one cell in the gridworld). The top-down mechanism conditions itself on the sub-problem, \ie{}, the intention to transition from the current state to the target state. The output of the soft-selection is a vector that aggregates the information from the top-$k$ most relevant local patches of the CNN features. For more details regarding top-$k$ and top-down attention mechanisms, please see Sec.~\ref{sec:attention} on Page.~\pageref{sec:attention}.
+
+This method of selecting top-$k$ receptive fields can be viewed as a more relaxed approach, generalizing the top-down attention controlled bottleneck with set-based representations in Chap.~\ref{cha:CP} to be compatible with general visual inputs processed by Convolutional Neural Networks (CNNs) \citep{lecun1989backpropagation} without the need for set-based state representation encoding.
+
+We provide a visualization of how spatial abstraction works in Fig.~\ref{fig:local_field}. Through $\sigma$, the auxiliary estimators, to be discussed soon, force the bottleneck mechanism to promote aspects relevant to the local estimation of connections between the checkpoints. The rewards and discounts are then estimated from the partial aspects of the environmental state relevant to the sub-problem at hand, conditioned on the agent's policy.
+
+\begin{figure}
+\centering
+\includegraphics[width=0.95\textwidth]{figures/Skipper/fig_local_field.pdf}
+\caption[Illustration of the Spatial Abstraction Mechanism]{\textbf{Illustration of the Spatial Abstraction Mechanism}: the top-down semi-hard attention is conditioned on an encoding of the checkpoint transition, established over two state-like representations.}
+\label{fig:local_field}
+\end{figure}
+
+\subsubsection{Checkpoint-Achieving Policy}
+The checkpoint-achieving policy implements \red{$\pi$}. We ask \Skipper{} to obtain the low-level policy $\red{\pi}$ by maximizing an intrinsic reward, which incentivize the achievement of a target checkpoint $S^{\odot}$. In this approach, the choice of intrinsic reward is flexible; for example, one could use a reward of $+1$ when $S_{t+1}$ is within a small radius of $S^{\odot}$
+%, \ie{}, when the next state $S_{t+1}$ is close enough to the target $S^{\odot}$, 
+according to some distance metric, or use reward-respecting intrinsic rewards that enable more sophisticated behaviors, as in \citep{sutton2023reward}. In the following, for simplicity, we will denote the checkpoint-achievement condition with equality: $S_{t+1}=S^{\odot}$.
+
+\subsubsection{Relationship Estimators}
+\label{sec:skipper_update_rules}
+Proxy problems require that the relationship estimates between checkpoints be capability-aware, \ie{}, conditioned on the low-level policy $\red{\pi}$. Thus, the learners must be off-policy compatible.
+
+With the consideration in mind, we designed learning rules that estimate the relationship between checkpoints with auxiliary reward signals that need not be tuned for each application to different tasks \citep{zhao2020meta}. Notably, these estimates are learned with C51-style distributional RL \citep{bellemare2017distributional}, where the output of each estimator takes the form of a histogram over scalar support (Sec.~\ref{sec:distoutputs}, Page.~\pageref{sec:distoutputs}).
+
+\paragraph{Cumulative Reward}
+following the design of proxy problems, the first interesting edge estimate to learn is the cumulative-discounted task reward \darkgreen{$v_{ij}^\pi$} along the possible trajectories leading to the target checkpoint $s_j$ under $\red{\pi}$ from a starting state $s_i$. We learn this by policy evaluation on an auxiliary reward that is the same as the original task reward everywhere except when reaching the target. Given a hindsight sample $\langle x_t, a_t, r_{t+1}, x_{t+1}, x^{\odot} \rangle$ and the corresponding encoded sample $\langle s_t, a_t, r_{t+1}, s_{t+1}, s^{\odot} \rangle$, we train $\darkgreen{V_\pi}$ with KL-divergence as follows:
+\begin{align}
+\begin{split}
+& \darkgreen{\hat{v}_\pi(s_t \to s^{\odot}, a_t)} \equiv \darkgreen{\hat{v}_\pi(\sigma(s_t| s_t \to s^{\odot}), a_t | \sigma(s^{\odot}| s_t \to s^{\odot}))} \\
+& \gets \begin{cases}
+R(s_t, a_t, s_{t+1}) + \gamma \darkgreen{\hat{v}_\pi(\sigma(s_{t+1}| s_{t+1} \to s^{\odot}), a_{t+1} | \sigma(s^{\odot}| s_{t+1} \to s^{\odot}))} &\text{if } s_{t+1} \neq s^{\odot}\\
+R(s_t, a_t, s_{t+1}) &\text{if } s_{t+1} = s^{\odot}
+\end{cases}
+\end{split}
+\label{eq:rule_learn_reward}
+\end{align}
+where $\sigma(s| s_{t} \to s^{\odot})$ is the spatially-abstracted from the full state $s$ given intention to go from $s$ to $s^{\odot}$, and $a_{t+1} \sim \red{\pi(\cdot | \sigma(s_{t+1}| s_{t+1} \to s^{\odot}), \sigma(s^{\odot}| s_{t+1} \to s^{\odot}))}$. Similar methods on estimating the reachability between states also exist in literature, however, without the considerations for spatial-abstraction.
+
+\paragraph{Cumulative Distances / Discounts}
+Besides $\darkgreen{v_\pi}$, the second important estimate for a checkpoint transition is the discounts $\blue{\gamma_\pi}$, which is needed for proxy problems.
+
+Notably, learning the cumulative discount leading to $s_\odot$ under $\red{\pi}$ is numerically difficult, even with C51, because the target values are heavily skewed towards $1$ if $\gamma \approx 1$. Note that this is not to say that reward estimation in Eq.~\ref{eq:rule_learn_reward} is numerically simple, since reward functions can be diverse.
+
+% Different from learning
+
+% With , the cumulative discount leading to $s_\odot$ under $\red{\pi}$ is unfortunately more difficult to learn than $\darkgreen{V_\pi}$, since the prediction would be heavily skewed towards $1$ if $\gamma \approx 1$. 
+
+We propose a way to bypass the numerical difficulties by take a detour to instead effectively estimating cumulative (truncated) distances (or trajectory length) under \red{$\pi$}. Similar to how we learn the cumulative rewards $\darkgreen{\hat{v}_\pi}$, such distances can be learned also with policy evaluation, where the auxiliary reward is $+1$ on every transition, except at the targets:
+\begin{align}
+\begin{split}
+& \blue{\hat{D}_\pi(s_t \to s^{\odot}, a_t)} \equiv \blue{\hat{D}_\pi(\sigma(s_t| s_{t} \to s^{\odot}), a_t | \sigma(s^{\odot}| s_{t} \to s^{\odot}))} \\
+& \gets \begin{cases}
+1 + \blue{\hat{D}_\pi(\sigma(s_{t+1}| s_{t+1} \to s^{\odot}), a_{t+1} | \sigma(s^{\odot}| s_{t+1} \to s^{\odot}))} &\text{if } s_{t+1} \neq s^{\odot}\\
+1 &\text{if } s_{t+1} = s^{\odot}\\
+\infty &\text{if } s_{t+1} \text{ is terminal and } s_{t+1} \neq s^{\odot}\\
+\end{cases}
+\end{split}
+\label{eq:rule_learn_distance}
+\end{align}
+
+where $a_{t+1} \sim \red{\pi(\cdot | \sigma(s_{t+1}| s_{t+1} \to s^{\odot}), \sigma(s^{\odot}| s_{t+1} \to s^{\odot}))}$.
+
+\paragraph{Recovering Discounts from Distances}
+With the learned distribution of cumulative distances by a C51 architecture \citep{dabney2018distributional}, the cumulative discount can then be extracted by swapping the support of the output histogram with the corresponding discounts values. This process is illustrated in Fig.~\ref{fig:support_override}. This bypasses the problem of $\doubleE[\gamma^D] \neq \gamma^{\doubleE[D]}$, because the probability of having a trajectory length of 5 under policy $\pi$ from state $s_t$ to $s_\odot$ is the same as a trajectory having discount $\gamma ^ 5$.
+
+\begin{SCfigure}[][htbp]
+\includegraphics[width=0.32\textwidth]{figures/Skipper/fig_support_override.pdf}
+\caption[Simultaneously Estimating Distributions of Discounts \& Distances]{\textbf{Simultaneously Estimating Distributions of Discounts \& Distances}: by swapping the support with the corresponding discount values, the distribution of the cumulative discount can be inferred from the output histogram of cumulative distances. Vice versa.}
+\label{fig:support_override}
+\end{SCfigure}
+
+The learned distances are not only used to recover the discounts needed for proxy problems, but are also used to prune unwanted checkpoints to simplify the proxy problem via $k$-medoids pruning (Sec.~\ref{sec:k_medoids}, Page.~\pageref{sec:k_medoids}), as well as pruning far-fetched edges (Sec.~\ref{sec:prune_edges}, Page.~\pageref{sec:prune_edges}), both to be introduced soon.
+
+\subsubsection{Justifying Update Rules for Edge Estimation}
+\label{sec:justify_update_rules}
+
+As previously analyzed, the quality of the estimations of the cumulative rewards and the cumulative discounts during checkpoint transitions determine if effective solutions of the proxy problems can be found.
+
+Thus, we want to understand if the update rules proposed previously would lead to high-quality estimates that the proxy problems need.
+
+The cumulative reward and cumulative discount are estimated by applying policy evaluation given $\pi$, on the two sets of auxiliary reward signals, respectively.
+
+The following equality for the cumulative discounted reward random variable can be shown:
+\begin{align}
+    V_\pi(s_t,a_t|s^{\odot}) = R(s_t,a_t,S_{t+1})+\gamma V_\pi(S_{t+1},A_{t+1}|s^{\odot}) = \sum_{\tau=t}^\infty \gamma^{\tau-t} R(S_\tau,A_\tau,S_{\tau+1}),
+\end{align}
+where $S_{t+1}\sim p(\cdot|s_t,a_t)$, $A_{t+1}\sim\pi(\cdot|S_{t+1},s^{\odot})$. Let $V_\pi(s|s^{\odot}) \coloneqq V_\pi(s,A|s^{\odot})$ with $A\sim\pi(\cdot|s,s^{\odot})$. Noticing that $V_\pi(S_{t+1},A_{t+1}|s^{\odot})=0$ if $S_{t+1}=s^{\odot}$, the equivalence is established towards Rule.~\ref{eq:rule_learn_reward} (Page.~\pageref{eq:rule_learn_reward}).
+ 
+Similarly, we connect the cumulative discount random variable with Rule.~\ref{eq:rule_learn_distance} (Page.~\pageref{eq:rule_learn_distance}). Let $\Gamma_\pi(s_t|s^{\odot}) \coloneqq \Gamma_\pi(s_t,A_t|s^{\odot})$ with $A_{t+1}\sim\pi(\cdot|S_{t+1},s^{\odot})$:
+\begin{align}
+    \Gamma_\pi(S_t,A_t|s^{\odot}) =  \gamma\cdot\Gamma_\pi(S_{t+1},A_{t+1}|s^{\odot}) = \gamma^{T_\perp-t} \mathbb{I}{\{S_{T_\perp}=s^{\odot}\}}
+\end{align}
+
+where $T_\perp$ denotes the timestep when the trajectory terminates, and with $\Gamma_\pi(S_{t+1},A_{t+1}|s^{\odot})=1$ if $S_{t+1}=s^{\odot}$ and $\Gamma_\pi(S_{t+1},A_{t+1}|s^{\odot})=0$ if $S_{t+1}\neq s^{\odot}$ is terminal.
+
+% Note that, for simplicity, we take here the view that the terminality of states is deterministic, but this is not reductive as any state with a stochastic terminality can be split into two identical states: one that is deterministically non-terminal and the other that is deterministically terminal. Note also that we could adopt the view that the discount factor is the constant probability of the trajectory to not terminate. 
+
+\subsection{Problem 2: Vertex Generation}
+\label{sec:skipper_generator}
+
+Proxy problems can only be constructed with both the vertices and the edges in hand. Since we do not assume the access to an oracle, to be able to use proxy problems, the vertices (checkpoint states) must be generated using a learned model.
+
+Different from most model-based approaches that utilize a predictive model to simulate the changes of the environment, we instead propose a temporally abstract checkpoint generator which aims to directly imagine the distant future states \textit{without needing to know how exactly the agent might reach them nor worrying about if they are reachable}. The feasibility of checkpoint transitions will be handled by the connection estimates instead. In the language of some existing literature, the generator here can be called a ``goal generator''. We also discuss the implication of such approaches in target-assisted frameworks in Sec.~\ref{sec:target_directed_framework} on Page.~\pageref{sec:target_directed_framework}.
+
+\subsubsection{Checkpoint Generator: Split Context \& Partial Descriptions}
+We want to design a checkpoint generator which generalizes well across diverse tasks, \ie{}, propose useful checkpoints even in novel scenarios. This means the generator should be able to capture the underlying causal mechanisms across tasks (a challenge for existing model-based methods) \citep{zhang2020invariant}. For this, we propose that the checkpoint generator learns to split the state representation into two parts: 1) an episodic / task \textbf{context} and 2) a \textbf{partial description}.
+
+We design the contexts and partial descriptions to coordinate as follows: in different contexts, the same partial description could correspond to different states. However, within a given context, the same partial description should always map to the same state. In other words, the partial description should capture the defining distinct feature of a certain state, while the combination of the context with the partial description recovers the information of a full state.
+
+In a navigation problem, for example, as in Fig.~\ref{fig:generator_training_inference}, a context could be a representation of the layout of the gridworld (of a specific task instantiation), and the partial description could represent the 2D-coordinates of the agent's location.
+
+Note that the representations of partial descriptions do  not necessarily capture the relevant transitional information between two states. This is why the design of partial description / context inside the generator should not be confused with the partial states created by spatial abstraction in Sec.~\ref{sec:skipper_spatial_abstraction} on Page.~\pageref{sec:skipper_spatial_abstraction}.
+
+\begin{figure}[htbp]
+\centering
+\captionsetup{justification = centering}
+\includegraphics[width=1.00\textwidth]{figures/Skipper/fig_generator_training_inference.pdf}
+\caption[Checkpoint Generator Training \& Inference]{\textbf{Checkpoint Generator Training \& Inference}: during training, both \blue{$x_t$} (current observation) and \darkgreen{$x^\odot$} (relabeled target observation) participate in the calculation of the training losses. The partial description is extracted from \darkgreen{$x^\odot$}, while the context is extracted from \blue{$x_t$}. Both are extracted by the same two-headed neural network, marked as the ``splitter''. The training losses seek to reconstruct \darkgreen{$x^\odot$}, by making the model learn that with a context from any current state, \eg{}, that of \blue{$x_t$}, \darkgreen{$x^\odot$} should be reconstructed as long as its corresponding partial description is used; during inference, the context from the current observation is used together with sampled partial descriptions to generate checkpoints.}
+\label{fig:generator_training_inference}
+\end{figure}
+
+As shown in Fig.~\ref{fig:generator_training_inference}, the proposed information split is achieved by an inductive bias of two parameterized trainable functions: the \textit{splitter} $\scriptE_{CZ}$, mapping the input $s$ into a representation of a context $c(s)$ and a partial description $z(s)$, as well as the \textit{fuser} $\bigoplus$ that recovers $s$ from the extracted $\langle c, z \rangle$. To achieve consistent context extraction across states in the same episode, at training time, we force the context to be extracted from other states in the same episode, instead of the input (upper pass in Fig.~\ref{fig:generator_training_inference}).
+
+Crucial for grounding the two representations into reality and stabilizing the hierarchical planning framework that is \Skipper{}, we rely on a reconstruction loss, despite having previously criticized this methodology in Sec.~\ref{sec:dynamics_predictors} and having avoided it in the previous work. As previously discussed, in \Skipper{}, we rely on a generative model instead of a predictive model, which relies more on techniques such as reconstruction. A reconstruction loss can be established on either the observation-level or a learned state level, depending on the need of the application. With full-observability, when the observation space is simpler than the state space to learn, we would recommend the reconstruction there, given the environment is fully observable.
+
+The two representations are learned by the generator, powered by a conditional Variational Auto-Encoder (CVAE) architecture (Sec.~\ref{sec:VAE}, Page.~\pageref{sec:VAE}) from hindsight-labeled targets (Sec.~\ref{sec:source_target_pair_hindsight_relabeling}, Page.~\pageref{sec:source_target_pair_hindsight_relabeling}). The generator learns a distribution $p(s^{\odot} | C(s_t)) = \sum_z{p(s^{\odot} | C(s_t), z) p(z | C(s_t))}$, where $C(s_t)$ is the extracted context from $s_t$ and $z$s are the partial descriptions. We train the generator by minimizing the evidence lower bound on $\langle s_t, s^{\odot} \rangle$ pairs chosen with HER. The processes of training and inference with the proposed checkpoint generator are illustrated in Fig.~\ref{fig:generator_training_inference}.
+
+With hindsight relabeling, we may need a more careful control over the distribution of the future checkpoints, which we seek to learn with the generator. This distribution, unlike the outcome of $1$-step transition, could be more diverse and non-stationary given a changing behavior policy, depending on the relabeling strategies \citep{andrychowicz2017hindsight}. In our implementation, the targets are labeled with the \episodestr{} relabeling strategy. Improper hindsight relabeling, such as using \episodestr{} exclusively as here, can cause delusional behaviors in target-assisted agents such as \Skipper{}. We will discuss this issue in detail in the next chapter.
+
+\phantomsection
+\label{sec:skipper_discrete_partial_desc}
+
+Similar to the discrete and categorical architectures used in \citet{hafner2023mastering,hansen2023td}, we constrain the partial description in the forms of bundles of binary variables, which requires the techniques of straight-through gradient estimators \citep{bengio2013estimating}. By design, these partial description latents can be easily sampled or composed during inference, \ie{}, decision-time planning. Compared to models such as that in \Director{} \citep{hafner2022deep}, which generates intermediate sub-goals on the on-policy trajectory, our proposed generator can generate and handle a more diverse distribution of states, beneficial for generalization in novel scenarios.
+
+The simple representations of the partial descriptions also granted us the simplicity to represent the sub-problems with a simple concatenation of the partial descriptions of two checkpoints. This is used in the top-down attentions for the spatial abstraction mechanism.
+
+\subsubsection{Pruning with $k$-medoids}
+\label{sec:k_medoids}
+
+In this chapter, the proposed conditional generation model is limited in the sense that they are return-unaware. Without learning how to be return-aware, the proxy problem can instead be improved by making it more sparse, and making the proxy problem vertices more evenly spread in state space. To achieve this, we propose a pruning process based on the classical $k$-medoids clustering algorithm \citep{kaufman1990medoids}, which only requires pairwise distance between states as input. During the construction of a proxy problem, a larger number of checkpoints are first generated. Then, these checkpoints are clustered using $k$-medoids, after which all checkpoints but the cluster centers are discarded. The cluster centers are always real generated checkpoints instead of imaginary weighted sums of state representations that will be produced by clustering algorithms such as $k$-means \citep{lloyd1982least}.
+
+Notably, for sparse reward tasks, the generator cannot guarantee the presence of the rewarding checkpoints, such as the task goal, to be in the proposed proxy problem. We could remedy this by explicitly learning the generation of the rewarding states with another conditional generator. These rewarding states should be kept as vertices (immune from pruning).
+
+We present the pseudocode of the modified $k$-medoids algorithm for pruning overcrowded checkpoints in Alg.~\ref{alg:k_medoids}. The changes upon the original $k$-medoids algorithm are marked in \purple{purple}, which correspond to a forced preservation of the special input data points as cluster centers: when $k$-medoids is called after the unpruned graph is constructed, $\scriptS_\vee$ is set to be the set containing the goal state only. This is intended to make the remaining cluster centers (selected checkpoints) span more uniformly in the state space, while preserving the goal. This is particularly proper if the proxy problems are going to be conserved throughout the episode and reused.
+
+There are some additional technical details we need to pay attention to, particularly because $k$-medoids was designed to handle undirected distances. Let the estimated distance matrix be $D$, where each element $d_{ij}$ represents the estimated trajectory length it takes for $\pi$ to fulfill the transition from checkpoint $i$ to checkpoint $j$. Since $k$-medoids cannot handle infinite distances (\eg{}, from a terminal state to another state), to still maximize for the span, the distance matrix $D$ is truncated, and then we take the elementwise minimum between the truncated $D$ and $D^T$ to preserve the one-way distances. The matrix containing the elementwise minimums would be the input of the pruning algorithm.
+
+\begin{algorithm*}[htbp]
+\caption{Checkpoint Pruning with $k$-medoids}
+\label{alg:k_medoids}
+% \KwIn{$D$ (estimated distance matrix), $\scriptS_{\vee}$ (states that must be kept)}
+% \KwOut{$\scriptS_{\odot}$ (states to keep)}
+
+% $\scriptS_{\odot} \leftarrow \scriptS_{\vee}$ \\
+\SetAlgoNlRelativeSize{-1}
+\KwData{$X = \{x_1, x_2, \ldots, x_n\}$ (state indices), $D$ (estimated distance matrix), $\scriptS_{\vee}$ (states that must be kept), $k$ (\#checkpoints to keep)\\
+}
+\KwResult{$\scriptS_\odot \equiv \{M_1, M_2, \ldots, M_k \}$ (checkpoints kept)}
+\BlankLine
+
+Initialize $\scriptS_\odot \equiv \{M_1, M_2, \ldots, M_k \}$ randomly from $X$\\
+
+\purple{make sure $\scriptS_\vee \subset \scriptS_\odot$}\\
+
+\Repeat{Convergence (no cost improvement)}{
+    Assign each data point $x_i$ to the nearest medoid $M_j$, forming clusters $C_1, C_2, \ldots, C_k$\;
+    \ForEach{medoid $M_j$}{
+        Calculate the cost $J_j$ of $M_j$ as the sum of distances between $M_j$ and the data points in $C_j$\;
+    }
+    Find the medoid $M_j$ with the lowest cost $J_j$\;
+    \If{$M_j$ changes}{
+        \purple{make sure $\scriptS_\vee \subset \scriptS_\odot$}\\
+        Replace $M_j$ with the data point in $C_j$ that minimizes the total cost\;
+    }
+}
+\end{algorithm*}
+
+\phantomsection
+\label{sec:prune_edges}
+
+In addition to vertex pruning, we also prune the edges according to a distance threshold, \ie{}, all edges with estimated distance over the threshold are deleted from the complete graph of the pruned vertices. This is enabled by how we interchangeably learned the cumulative discounts and distances. Such approach biases the plans, \ie{}, the solutions of the proxy problems, towards shorter-length, smaller-scale sub-problems, as distant checkpoints are difficult for \red{$\pi$} to achieve.
+
+\subsection{\texorpdfstring{\Skipper{}}{Skipper} Framework: Assemble Everything}
+
+\begin{figure}[htbp]
+\centering
+\captionsetup{justification = centering}
+\includegraphics[width=1.00\textwidth]{figures/Skipper/fig_overall.pdf}
+\caption[\Skipper{} Framework]{\textbf{\Skipper{} Framework}: 1) Partial states, used for low-level policy and edge estimation, consist of a few local perceptive fields, soft-selected via top-$k$ attention \citep{gupta2021memory}. \Skipper{}'s edge estimations and low-level behaviors \red{$\pi$} are based on the partial states. 2) The checkpoint generator learns by splitting the full states into contexts and partial descriptions, and fusing them to reconstruct the input. It imagines checkpoints by sampling partial descriptions and combining them with the episodic contexts; 3) We prune the vertices and edges of the denser graphs to extract sparser proxy problems. Value iteration can be used to solve the proxy problems and the solutions are equivalent to plans in the original problem. Each step in the plan becomes a sub-problem. In the proxy problem example, blue edges are estimated to be bidirectional and red edges have the other direction pruned.}
+\label{fig:overall}
+\end{figure}
+
+An overall view of the proposed \Skipper{} framework with all components assembled is illustrated in Fig.~\ref{fig:overall}. The pseudocode of \Skipper{} is provided in Alg.~\ref{alg:skipper}, together with the hyperparameters used in later experiments.
+
+\begin{algorithm*}[htbp]
+\caption{\Skipper{} with Random Checkpoints \purple{(implementation choice in purple)}}
+\label{alg:skipper}
+
+\For{each episode}{
+    \darkgreen{// --- start of the \textbf{subroutine} to construct the proxy problem} \\
+    
+    generate more than necessary \purple{(32)} checkpoints by sampling from the partial descriptions given the extracted context from the initial state; \\
+
+    \purple{$(k=12)$}-medoids pruning upon estimated distances among all checkpoints; \darkgreen{// prune vertices} \\
+
+    use estimators to annotate the edges between the nodes \purple{(including a terminal state estimator to correct the estimates)}; \\
+
+    prune edges that are too far-fetched according to distance estimations \purple{(threshold set to be $8$, same as replan interval)}; \darkgreen{// prune edges} \\
+
+    \darkgreen{// --- end of the \textbf{subroutine} to construct the proxy problem} \\
+
+    \For{each agent-environment interaction step until termination of episode}{
+        \If{decided to explore \purple{(\DQN{}-style annealing $\epsilon$-greedy)}}{ 
+            take a random action; \\    
+        }
+        \Else{
+            \If{abstract problem just constructed \textbf{or} a checkpoint / timeout reached \purple{($\geq8$ steps since last planned)}}{
+                [\textbf{OPTIONAL}] call the \textbf{subroutine} above for \textbf{\Skipper{}-regen}; \\
+                run value iteration \purple{(for $5$ iterations)} on the proxy problem, select the target checkpoint; \\
+            }
+            follow the action suggested by the checkpoint-achieving policy; \\ 
+        }
+        \If{time to train \purple{(every $4$ actions)}}{
+            sample hindsight-relabelled transitions and train checkpoint-achieving policy, checkpoint generator \& estimators \purple{(including a terminal state estimator)}; \\
+
+        }
+        save interaction into the trajectory experience replay; \\
+    }
+    convert trajectory into HER samples \purple{(relabel $4$ random states as additional goals)}; \\
+}
+\end{algorithm*}
+
+\section{Discussions of Methodologies}
+\label{sec:skipper_related_work}
+
+\subsection{About Proxy Problems}
+The representation of a proxy problem draws similarity to an early work on landmark-based approximate value iteration \citep{mann2015approximate}. 
+
+Concurrently, \citep{zadem2024reconciling} introduced a three-level hierarchical planning method aimed at decomposing an overall task into abstract goal regions, with sub-steps defined over goal transitions; \citet{lo2024goal} proposed to decompose the task by goal-space MDPs, essentially proxy problems, and conduct background planning (Sec.~\ref{sec:background_planning}, Page.~\pageref{sec:background_planning}) to improve performance. 
+
+Similar to \Skipper{}, whole sets of relationship estimation learning, \eg{}, for reachability, between states and goals are proposed and analyzed in both works. Different from \Skipper{}, both works were not motivated from OOD generalization and focused on a classical single-task RL setting.
+
+For Goal Space Planning (GSP) from \citet{lo2024goal} specifically, extensive studies were done on multiple classical single-training task environments, spanning from tabular methods to deep RL. \citet{lo2024goal} was motivated by the fact that background planning methods often behave worse than the model-free baselines due to the generation of invalid states (a behavior named \textbf{hallucination}, to be discussed in Sec.~\ref{sec:problematic_targets} on Page.~\pageref{sec:problematic_targets}). GSP sought to address the performance issue by constraining background planning to a given set of (abstract) subgoals. The method applied can be viewed from the lens of target-assisted frameworks and is highly similar to our mitigation strategies in Chap.~\ref{cha:delusions} on Page.~\pageref{cha:delusions}.
+
+For methods that abstract the original MDP with representative states, such as proxy problems, planning can be efficient, while the resulting policy could be suboptimal. \citet{lo2024goal} argued that the sub-optimality issue forces a trade-off between increasing the size of the abstract MDP (to increase the policy's expressivity) and increasing the computational cost of decision-time planning. We acknowledge such limitation to the \Skipper{} framework (and so for other decision-time methods such as  \citet{zadem2024reconciling}) and agree it may be a good motivation for using background planning in a classical single-task focused RL setting. On a high-level, proxy problems indeed trade optimality for robustness. We presented the framework's sensitivity to the number of checkpoints in proxy problems in Sec.~\ref{sec:sensitivity_num_checkpoints} on Page.~\pageref{sec:sensitivity_num_checkpoints}. While acknowledging the shortcomings of the methodology of \Skipper{}, we have to point out that background planning methods, including GSP, assumes that a know-all do-all policy can be effectively learned, which is rarely the case in practice. In the analyses in Sec.~\ref{sec:perf_guarantee} (Page.~\pageref{sec:perf_guarantee}), we explicitly discussed why we assumed no such condition.
+
+While both \citet{zadem2024reconciling} and \citet{lo2024goal} require oracles to work, \Skipper{} operates at mainly the state-level and is able to generate the checkpoints, \ie{}, the subgoals, autonomously.
+
+\subsection{About Task Decomposition with Selected States / Sub-Goals}
+
+Some early works such as \citet{mcgovern2001automatic} suggested to use bottleneck states to abstract given tasks into manageable steps. In \citet{kim2021landmarkguided}, promising states to explore are generated and selected with shortest-path algorithms. Similar ideas were attempted for guided exploration \citep{erraqabi2022temporal,kulkarni2016hierarchical}.
+
+Similar to \citet{hafner2022deep}, \citet{czechowski2021subgoal} generate fixed-steps ahead subgoals, while \citet{bagaria2021skill} augments the search graph by states reached fixed-steps ahead. \citet{nasiriany2019planning,xie2020latent,shi2022skill} employ CEM to plan a chain of subgoals towards the task goal \citep{rubinstein1997optimization}.
+
+Similar to our approach, \citet{nair2018visual,florensa2018automatic} use models to imagine subgoals while \citet{eysenbach2019search} search directly on the experience replay. \Skipper{} utilizes proxy problems to abstract the given tasks via spatio-temporal abstractions \citep{bagaria2021skill}. Checkpoints can be seen as sub-goals that generalize the notion of ``landmarks" or ``waypoints'' in \citet{sutton1999between,dietterich2000hierarchical,savinov2018semi}. \citet{zhang2021world} used latent landmark graphs as high-level guidance, where the landmarks are sparsified with weighted sums in the latent space to compose subgoals. In comparison, our checkpoint pruning selects a subset of generated states, which is less prone to issues created by weighted sums.
+
+\subsection{About Temporal Abstraction}
+
+Somewhat similar to the idea behind attention, choosing a checkpoint target is a selection towards certain decision points in the dimension of time, \ie{}, a form of temporal abstraction. Constraining options, \Skipper{} learns the options targeting certain ``outcomes'', which dodges the difficulties of option collapse \citep{bacon2017option} and option outcome modeling by design. It should be acknowledged that the constraints shift the difficulties to generator learning \citep{silver2012compositional,tang2019multiple}. We expect this shift to bring benefits in cases where states are easy to learn and generate, and / or in stochastic environments where the outcomes of unconstrained options are difficult to learn. Constraining options was also investigated in unsupervised settings \citep{sharma2019dynamics}.
+
+\subsection{About Spatial Abstraction}
+\label{sec:related_spatial_abstraction}
+
+Spatial abstraction is a special, dynamic kind of ``state abstraction'' \citep{sacerdoti1974planning,knoblock1994automatically}. When state abstraction is being done in a non-dynamic way, it roughly equates to a synonym for state space partitioning due to the focus  \citep{li2006towards}. Spatial abstraction, characterized to capture the behavior of conscious planning in the spatial dimension, focuses on the \textbf{intra-state} partial selection of the environmental state for decision-making. It corresponds naturally to the intuition that state representations should contain useful aspects of the environment, while not all aspects are useful for a particular intent (sub-problem). Efforts toward spatial abstraction are traceable to early hand-coded proof-of-concepts proposed in \citet{dietterich2000hierarchical}. In \citet{zadaianchuk2020self,fu2021learning,shah2021value}, $3$ more recent model-based approaches, spatial abstractions are attempted to remove visual distractors.
+
+Until only recently, attention mechanisms had primarily been used to construct state representations in model-free agents for sample efficiency purposes, overlooking their potentials for generalization \citep{mott2019towards,manchin2019reinforcement,tang2020neuroevolution}. Emphasizing on generalization, our previous work \citep{zhao2021consciousness} used spatially-abstract partial states in decision-time planning, as introduced in Chap.~\ref{cha:CP}. We proposed an attention bottleneck to dynamically select a subset of environmental entities during the atomic-step forward simulation, without explicit goals provided as in \citet{zadaianchuk2020self}. \Skipper{}'s checkpoint transition is a step-up from our old approach, where we now show that spatial abstraction, an overlooked missing flavor, is as crucial for longer-term planning, arguably as important as temporal abstraction \citep{konidaris2009efficient}. 
+
+Concurrently, GSP sought to constrain background planning to a given set of (abstract) subgoals and learning only local, subgoal-conditioned models \citep{lo2024goal}. To a degree, the claimed compatibility to learn only local and sub-goal conditioned models is only materialized with our implemented spatial abstraction mechanisms, in this chapter. 
+
+% \citet{shah2021value} attempted longer-horizon reasoning with an empirical framework that leverages state-action abstractions, yet with pre-specified set of skills rather than learned like in this work, which provides a theory-regulated framework.
+
+\subsection{About Planning Estimates}
+Hierarchical planning must be established over estimates that can guide the low-level behaviors. \citet{zhang2021world} proposed a distance estimate with an explicit regression. With Temporal-Difference Models (TDMs) \citep{pong2018temporal}, \LEAP{} \citep{nasiriany2019planning} embraces a sparse intrinsic reward based on distances to the goal states. Contrasting with our distance estimates, there is no empirical evidence of TDMs' compatibility with stochasticity and terminal states. \citet{eysenbach2019search} employs a similar distance learning technique to extract the shortest path distance between states present in the experience replay; while our proposed estimators learn the distance conditioned on evolving policies. Similar aspects were also investigated in \citet{nachum2018dataefficient}.
+
+\input{chapter_5_Skipper_exp}
+
+\section{Summary}
+
+In this chapter, we proposed, analyzed and validated \Skipper{}, which builds combined spatio-temporal abstractions and generalizes its learned skills better than other comparable methods.

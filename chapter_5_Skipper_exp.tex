@@ -1,0 +1,720 @@
+\section{Research Findings: Experiments}
+\label{sec:skipper_exp}
+The primary goal of our experiments is to understand how the proposed \Skipper{} framework can bring advantages of (zero-shot) generalization. To fully understand the results, we must have precise control of the difficulty of the training and evaluation tasks. Also, to validate if the empirical performance of our agents matches the formal analyses (Thm.~\ref{thm:proxyprobsperf}), we need to know how close to the (optimal) ground truth our edge estimations and checkpoint policies are. These objectives lead to the need for environments whose ground truth information (optimal policies, true distances between checkpoints, \etc{}) can be computed. For these reasons, we chose to employ \RDS{} as our main experiment environments.
+
+Despite that the experiments in this chapter employ essentially the same kind of environment as the previous chapter, the experimental settings are quite different. 
+
+Across all experiments, we sample training tasks from an environment distribution of difficulty $\delta = 0.4$: each cell in the field has probability $0.4$ to be filled with lava while guaranteeing a path from the initial position to the goal. The evaluation tasks are sampled from a gradient of OOD difficulties - $0.25$, $0.35$, $0.45$ and $0.55$, where the training difficulty acts as mean\footnote{This is an updated setting from that used in Chap.~\ref{cha:CP} (Sec.~\ref{sec:CP_experiments}, Page.~\pageref{sec:CP_experiments}). The training difficulty of $\delta = 0.4$ now is OOD from those of evaluation and is right in the middle of the OOD evaluation difficulty range. The transposed OOD evaluation instances are no longer used because without it 1) the OOD setting becomes closer to the distribution shfit setting commonly used; and 2) the performance discrepancy between the evaluation curves on the training tasks and the evaluation tasks can directly reflect the generalization gap. See Sec.~\ref{sec:OOD_settings} on Page.~\pageref{sec:OOD_settings} for more discussions.}. 
+
+We have taken measures to accelerate the experiments and isolate challenges from the aspects of exploration. During evaluation, the agent is always spawned at the opposite side from the goals. During training, the agent's position is uniformly initialized to speed up training. We provide results for non-uniform training initialization in the later experiments. This change means that the agents can be trained for only $1.5 \times 10^{6}$ interactions to achieve convergence. 
+
+Meanwhile, to increase generalization difficulty for long(er) term planning, we conduct experiments done on large, $12 \times 12$ maze sizes, compared to the maximum $10 \times 10$ used in Chap.~\ref{cha:CP}. The compared agents include:
+
+\begin{itemize}[label={},leftmargin=-0mm]
+    \item \textbf{\Skipper{}-once}: A \Skipper{} variant that generates one proxy problem at the start of the episode, and the replanning (choosing a checkpoint target based on the existing proxy problem) only triggers a quick re-selection of the immediate checkpoint target;
+    \item \textbf{\Skipper{}-regen}: A variant that re-generates a proxy problem when replanning is triggered;
+    \item \textbf{modelfree}: A model-free baseline agent sharing the same base architecture with the \Skipper{} variants - a prioritized distributional \DDQN{} \citep{dabney2018distributional,hasselt2015double};
+    \item \textbf{\Director{}}: An adapted \Director{} agent \citep{hafner2022deep}. Since \Director{} discards trajectories that are not long enough for training purposes, we give it extra agent-environment interaction budget to make sure that the same amount of training data is gathered as for the other agents;
+    \item \LEAP{}: An adapted \LEAP{} agent for discrete action spaces. We waived the interaction costs for its generator pretraining stage, only showing the second stage of RL pretraining.
+\end{itemize}
+
+Please refer to Sec.~\ref{sec:skipper_aux} on Page.~\pageref{sec:skipper_aux} for more details regarding implementation of these agents.
+
+\subsection{Generalization Performance with \texorpdfstring{$50$}{50} Training Environments}
+The main set of experiments is focused on how well the compared agents could generate after training on $50$ tasks, a representative configuration of different numbers of training tasks including $\{1, 5, 25, 50, 100, \infty \}$\footnote{$\infty$ training tasks mean that an agent is trained on a different task for each episode. In reality, this may lead to prohibitive costs in creating the training environment.}
+
+Fig.~\ref{fig:50_envs} shows how the agents' performance (measured by the episodic task success rates) evolves during training. These results are obtained with $50$ fixed training tasks (different $50$ task instances for each independent seed run, with each task instance generated at $\delta = 0.4$). In Fig.~\ref{fig:50_envs} \textbf{a)}, we observe how well an agent performs on its training tasks (note the differences in initialization between an evaluation episode and a training episode). If an agent performs well here but badly in \textbf{b)}, \textbf{c)}, \textbf{d)} and \textbf{e)}, like the \textbf{modelfree} baseline, then we suspect that it overfitted on training tasks, likely indicating a reliance on memorization \citep{cobbe2019procgen}. This was also discussed in the previous chapter.
+
+Due to the non-overlapping confidence intervals, we observe a statistically significant advantage in the generalization performance of the \Skipper{} agents throughout training, compared to the other methods. It is worth noting that the \textbf{regen} variant exhibits significant performance advantages over all other methods, including the \textbf{once} variant. This is likely because, the frequent reconstruction of the graph makes the agent less prone to being trapped in a low-quality proxy problem, and thus provides extra adaptability in novel scenarios. 
+
+During training, it should be acknowledged that \Skipper{} variants behave less optimally than expected, despite the strong generalization on evaluation tasks. As our later ablation results show, concurring with our previous theoretical analyses, such a phenomenon is an outcome of inaccuracies both in the proxy problem and the checkpoint policy. One major symptom of an inaccurate proxy problem is that the agent would chase delusional targets. We address this behavior in the next chapter.
+
+\begin{figure}[htbp]
+\centering
+\subfloat[training, $\delta = 0.4$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_50_envs_0.pdf}}
+\hfill
+\subfloat[OOD, $\delta = 0.25$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_50_envs_1.pdf}}
+\hfill
+\subfloat[OOD, $\delta = 0.35$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_50_envs_2.pdf}}
+\hfill
+\subfloat[OOD, $\delta = 0.45$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_50_envs_3.pdf}}
+\hfill
+\subfloat[OOD, $\delta = 0.55$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_50_envs_4.pdf}}
+
+\caption[Evaluation Performance Evolution of Compared Agents during Training]{\textbf{Evaluation Performance Evolution of Compared Agents during Training}: the $x$-axes correspond to training progress, while the aligned $y$-axes represent the success rate of episodes (optimal is 1.0). Each agent is trained with $50$ tasks. Each data point is the average success rate over $20$ evaluation episodes, and each error bar (95\% confidence interval) is processed from $20$ independent seed runs. Training tasks performance is shown in a) while OOD evaluation performance is shown in b), c), d), e). }
+\label{fig:50_envs}
+\end{figure}
+
+Performing better than the \textbf{modelfree} baseline, \LEAP{} obtains reasonable generalization performance, that is, if we are willing to waive the extra budget it needed for pretraining. In the next chapter, we show that \LEAP{} benefits largely from removing hallucinated state targets, which validates that optimizing for a path in the latent space may be prone to errors caused by delusional subgoals. Lastly, we see that the \Director{} agents suffer in these experiments despite their good performance in the single environment experimental settings reported by \citet{hafner2022deep}. One may be surprised by how badly a state-of-the-art hierarchical planning methods such as \Director{} performed. For this, we will present later additional experiments to show that \Director{} is certainly strong in the more classical mono-task experimental setting, but not strong in a multi-task, generalization-focused setting (the one we adopted in this chapter): \Director{} performs well in single environment configurations as expected, but its performance deteriorates fast with more training tasks. Such results indicate poor scalability in terms of generalization, and thus a limitation to its real-world applications.
+
+\subsection{Scalability Studies: Number of Training Tasks}
+Inspired by \citet{cobbe2019procgen}, we want to investigate the scalability of the agents' generalization abilities \wrt{} the number of training tasks. A method is favorable if it could achieve the highest generalization performance with the least amounts of training tasks.
+
+To this end, in Fig.~\ref{fig:num_envs_all}, we present the results of the agents' final evaluation performance after training over different numbers of training tasks.
+
+We can observe that, with few or more training tasks, \Skipper{}s and the baseline show consistent improvements in generalization performance. While both \LEAP{} and \Director{} behave similarly as in the previous $50$-task experiments. Notably, the \textbf{modelfree} baseline can reach similar performance as \Skipper{}, but only when trained on a different task in each episode, which is generally infeasible in the real world beyond simulator-based environments.
+
+\begin{figure}[htbp]
+\centering
+\subfloat[training, $\delta = 0.4$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_num_envs_all_0.pdf}}
+\hfill
+\subfloat[OOD, $\delta = 0.25$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_num_envs_all_1.pdf}}
+\hfill
+\subfloat[OOD, $\delta = 0.35$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_num_envs_all_2.pdf}}
+\hfill
+\subfloat[OOD, $\delta = 0.45$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_num_envs_all_3.pdf}}
+\hfill
+\subfloat[OOD, $\delta = 0.55$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_num_envs_all_4.pdf}}
+\caption[Evaluation Performance of Agents with Different Numbers of Training Tasks]{\textbf{Evaluation Performance of Agents with Different Numbers of Training Tasks}: each data point and corresponding error bar (95\% confidence interval) are based on the final performance from $20$ independent seed runs. Training task performance is shown in a) while OOD performance is shown in b), c), d), e). Notably, the \Skipper{} agents as well as the adapted \LEAP{} behave poorly during training when being trained on only one task. This is likely because the split of context and partial information in the checkpoint generator cannot be achieved. Training on one task invalidates the purpose of the proposed generalization-focused checkpoint generator.}
+\label{fig:num_envs_all}
+\end{figure}
+
+\subsubsection{\texorpdfstring{\Skipper{}}{Skipper}-once Scalability}
+We present the performance evolution (throughout training) of \textbf{\Skipper{}-once} with different numbers of training tasks, in Fig.~\ref{fig:once_num_envs}.
+
+\begin{figure}[htbp]
+\centering
+\subfloat[training, $\delta = 0.4$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_once_num_envs_0.pdf}}
+\hfill
+\subfloat[OOD, $\delta = 0.25$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_once_num_envs_1.pdf}}
+\hfill
+\subfloat[OOD, $\delta = 0.35$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_once_num_envs_2.pdf}}
+\hfill
+\subfloat[OOD, $\delta = 0.45$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_once_num_envs_3.pdf}}
+\hfill
+\subfloat[OOD, $\delta = 0.55$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_once_num_envs_4.pdf}}
+
+\caption[Evaluation Performance Evolution of \Skipper{}-once with Different Numbers of Training Tasks]{\textbf{Evaluation Performance Evolution of \Skipper{}-once with Different Numbers of Training Tasks}: each error bar (95\% CI) was obtained from $20$ seed runs.}
+\label{fig:once_num_envs}
+\end{figure}
+
+\subsubsection{\texorpdfstring{\Skipper{}}{Skipper}-regen Scalability}
+We present the performance evolution (throughout training) of \textbf{\Skipper{}-regen} with different numbers of training tasks, in Fig.~\ref{fig:regen_num_envs}.
+
+\begin{figure}[htbp]
+\centering
+\subfloat[training, $\delta = 0.4$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_regen_num_envs_0.pdf}}
+\hfill
+\subfloat[OOD, $\delta = 0.25$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_regen_num_envs_1.pdf}}
+\hfill
+\subfloat[OOD, $\delta = 0.35$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_regen_num_envs_2.pdf}}
+\hfill
+\subfloat[OOD, $\delta = 0.45$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_regen_num_envs_3.pdf}}
+\hfill
+\subfloat[OOD, $\delta = 0.55$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_regen_num_envs_4.pdf}}
+
+\caption[Performance of \Skipper{}-regen with Different Numbers of Training Tasks]{\textbf{Performance of \Skipper{}-regen with Different Numbers of Training Tasks}: each error bar (95\% CI) was obtained from $20$ seed runs.}
+\label{fig:regen_num_envs}
+\end{figure}
+
+
+\subsubsection{\textbf{modelfree} Scalability}
+We present the performance evolution (throughout training) of the \textbf{modelfree} with different numbers of training tasks, in Fig.~\ref{fig:modelfree_num_envs}.
+
+\begin{figure}[htbp]
+\centering
+\subfloat[training, $\delta = 0.4$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_modelfree_num_envs_0.pdf}}
+\hfill
+\subfloat[OOD, $\delta = 0.25$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_modelfree_num_envs_1.pdf}}
+\hfill
+\subfloat[OOD, $\delta = 0.35$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_modelfree_num_envs_2.pdf}}
+\hfill
+\subfloat[OOD, $\delta = 0.45$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_modelfree_num_envs_3.pdf}}
+\hfill
+\subfloat[OOD, $\delta = 0.55$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_modelfree_num_envs_4.pdf}}
+
+\caption[Evaluation Performance Evolution of \textbf{modelfree} with Different Numbers of Training Tasks]{\textbf{Evaluation Performance Evolution of \textbf{modelfree} with Different Numbers of Training Tasks}: each error bar (95\% CI) was obtained from $20$ seed runs.}
+\label{fig:modelfree_num_envs}
+\end{figure}
+
+\subsubsection{\texorpdfstring{\LEAP{}}{LEAP} Scalability}
+We present the performance evolution (throughout training) of the adapted \LEAP{} baseline with different numbers of training tasks, in Fig.~\ref{fig:leap_num_envs}.
+
+\begin{figure}[htbp]
+\centering
+\subfloat[training, $\delta = 0.4$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_leap_num_envs_0.pdf}}
+\hfill
+\subfloat[OOD, $\delta = 0.25$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_leap_num_envs_1.pdf}}
+\hfill
+\subfloat[OOD, $\delta = 0.35$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_leap_num_envs_2.pdf}}
+\hfill
+\subfloat[OOD, $\delta = 0.45$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_leap_num_envs_3.pdf}}
+\hfill
+\subfloat[OOD, $\delta = 0.55$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_leap_num_envs_4.pdf}}
+
+\caption[Evaluation Performance Evolution of \LEAP{} with Different Numbers of Training Tasks]{\textbf{Evaluation Performance Evolution of \LEAP{} with Different Numbers of Training Tasks}: each error bar (95\% CI) was obtained from $20$ seed runs.}
+\label{fig:leap_num_envs}
+\end{figure}
+
+\subsubsection{\texorpdfstring{\Director{}}{Director} Scalability}
+We present the performance evolution (throughout training) of the adapted \Director{} baseline on different numbers of training tasks, in Fig.~\ref{fig:director_num_envs}.
+
+\begin{figure}[htbp]
+\centering
+\subfloat[training, $\delta = 0.4$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_director_num_envs_0.pdf}}
+\hfill
+\subfloat[OOD, $\delta = 0.25$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_director_num_envs_1.pdf}}
+\hfill
+\subfloat[OOD, $\delta = 0.35$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_director_num_envs_2.pdf}}
+\hfill
+\subfloat[OOD, $\delta = 0.45$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_director_num_envs_3.pdf}}
+\hfill
+\subfloat[OOD, $\delta = 0.55$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_director_num_envs_4.pdf}}
+
+\caption[Evaluation Performance Evolution of \Director{} with Different Numbers of Training Tasks]{\textbf{Evaluation Performance Evolution of \Director{} with Different Numbers of Training Tasks}: each error bar (95\% CI) was obtained from $20$ seed runs.}
+\label{fig:director_num_envs}
+\end{figure}
+
+\subsubsection{Detailed OOD Performance with Different Numbers of Training Tasks}
+The performance of all agents on all training configurations, \ie{}, different numbers of training tasks, are presented in Fig.~\ref{fig:1_envs}, Fig.~\ref{fig:5_envs}, Fig.~\ref{fig:25_envs}, Fig.~\ref{fig:50_envs_app}, Fig.~\ref{fig:100_envs} \& Fig.~\ref{fig:inf_envs}.
+
+\begin{figure}[htbp]
+\centering
+\subfloat[training, $\delta = 0.4$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_1_envs_0.pdf}}
+\hfill
+\subfloat[OOD, $\delta = 0.25$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_1_envs_1.pdf}}
+\hfill
+\subfloat[OOD, $\delta = 0.35$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_1_envs_2.pdf}}
+\hfill
+\subfloat[OOD, $\delta = 0.45$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_1_envs_3.pdf}}
+\hfill
+\subfloat[OOD, $\delta = 0.55$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_1_envs_4.pdf}}
+
+\caption[Evaluation Performance of Agents Trained on $1$ Task]{\textbf{Evaluation Performance of Agents Trained on $1$ Task}: each error bar (95\% CI) was obtained from $20$ seed runs.}
+\label{fig:1_envs}
+\end{figure}
+
+
+\begin{figure}[htbp]
+\centering
+\subfloat[training, $\delta = 0.4$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_5_envs_0.pdf}}
+\hfill
+\subfloat[OOD, $\delta = 0.25$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_5_envs_1.pdf}}
+\hfill
+\subfloat[OOD, $\delta = 0.35$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_5_envs_2.pdf}}
+\hfill
+\subfloat[OOD, $\delta = 0.45$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_5_envs_3.pdf}}
+\hfill
+\subfloat[OOD, $\delta = 0.55$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_5_envs_4.pdf}}
+
+\caption[Evaluation Performance of Agents Trained on $5$ Tasks]{\textbf{Evaluation Performance of Agents Trained on $5$ Tasks}: each error bar (95\% CI) was obtained from $20$ seed runs.}
+\label{fig:5_envs}
+\end{figure}
+
+\begin{figure}[htbp]
+\centering
+\subfloat[training, $\delta = 0.4$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_25_envs_0.pdf}}
+\hfill
+\subfloat[OOD, $\delta = 0.25$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_25_envs_1.pdf}}
+\hfill
+\subfloat[OOD, $\delta = 0.35$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_25_envs_2.pdf}}
+\hfill
+\subfloat[OOD, $\delta = 0.45$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_25_envs_3.pdf}}
+\hfill
+\subfloat[OOD, $\delta = 0.55$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_25_envs_4.pdf}}
+
+\caption[Evaluation Performance of Agents Trained on $25$ Tasks]{\textbf{Evaluation Performance of Agents Trained on $25$ Tasks}: each error bar (95\% CI) was obtained from $20$ seed runs.}
+\label{fig:25_envs}
+\end{figure}
+
+
+\begin{figure}[htbp]
+\centering
+\subfloat[training, $\delta = 0.4$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_50_envs_0.pdf}}
+\hfill
+\subfloat[OOD, $\delta = 0.25$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_50_envs_1.pdf}}
+\hfill
+\subfloat[OOD, $\delta = 0.35$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_50_envs_2.pdf}}
+\hfill
+\subfloat[OOD, $\delta = 0.45$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_50_envs_3.pdf}}
+\hfill
+\subfloat[OOD, $\delta = 0.55$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_50_envs_4.pdf}}
+
+\caption[Evaluation Performance of Agents Trained on $50$ Tasks]{\textbf{Evaluation Performance of Agents Trained on $50$ Tasks}: each error bar (95\% CI) was obtained from $20$ seed runs.}
+\label{fig:50_envs_app}
+\end{figure}
+
+\begin{figure}[htbp]
+\centering
+\subfloat[training, $\delta = 0.4$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_100_envs_0.pdf}}
+\hfill
+\subfloat[OOD, $\delta = 0.25$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_100_envs_1.pdf}}
+\hfill
+\subfloat[OOD, $\delta = 0.35$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_100_envs_2.pdf}}
+\hfill
+\subfloat[OOD, $\delta = 0.45$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_100_envs_3.pdf}}
+\hfill
+\subfloat[OOD, $\delta = 0.55$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_100_envs_4.pdf}}
+
+\caption[Evaluation Performance of Agents Trained on $100$ Tasks]{\textbf{Evaluation Performance of Agents Trained on $100$ Tasks}: each error bar (95\% CI) was obtained from $20$ seed runs.}
+\label{fig:100_envs}
+\end{figure}
+
+
+\begin{figure}[htbp]
+\centering
+\subfloat[training, $\delta = 0.4$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_inf_envs_0.pdf}}
+\hfill
+\subfloat[OOD, $\delta = 0.25$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_inf_envs_1.pdf}}
+\hfill
+\subfloat[OOD, $\delta = 0.35$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_inf_envs_2.pdf}}
+\hfill
+\subfloat[OOD, $\delta = 0.45$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_inf_envs_3.pdf}}
+\hfill
+\subfloat[OOD, $\delta = 0.55$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_inf_envs_4.pdf}}
+
+\caption[Evaluation Performance of Agents Trained on $\infty$ Tasks]{\textbf{Evaluation Performance of Agents Trained on $\infty$ Tasks (a new task each training episode)}: each error bar (95\% CI) was obtained from $20$ seed runs.}
+\label{fig:inf_envs}
+\end{figure}
+
+% \subsubsection{Statistical Significance \& Power Analyses}
+% Besides visually observing generally non-overlapping confidence intervals, we present the pairwise $t$-test results of \textbf{\Skipper{}-once} and \textbf{\Skipper{}-regen} against the compared methods. In addition, if the advantage is significant, we perform power analyses to determine if the number of seed runs ($20$) was enough to make the significance claim. These results are shown in Tab. \ref{tab:once} and Tab. \ref{tab:regen}, respectively.
+
+% \begin{table}[!htp]\centering
+% \caption{\textbf{\Skipper{}-once} \vs{} others: significance \& power}
+% \begin{tabular}{c|c|c|c|c|c}\toprule
+%  &method \textbackslash task difficulty &0.25 &0.35 &0.45 &0.55 \\
+% \midrule
+% \multirow{3}{*}{1 train envs} &leap &\textbf{22} &\textbf{NO} &\textbf{NO} &\textbf{NO} \\
+% &director &15 &11 &\textbf{22} &11 \\
+% &baseline &\textbf{NO} &\textbf{38} &\textbf{36} &\textbf{NO} \\
+%  \midrule
+% \multirow{3}{*}{5 train envs} &leap &\textbf{28} &\textbf{NO} &\textbf{NO} &\textbf{NO} \\
+% &director &\textbf{NO} &\textbf{NO} &\textbf{NO} &\textbf{22} \\
+% &baseline &11 &8 &10 &12 \\
+%  \midrule
+% \multirow{3}{*}{25 train envs} &leap &15 &13 &11 &7 \\
+% &director &2 &2 &2 &2 \\
+% &baseline &2 &2 &2 &2 \\
+%  \midrule
+% \multirow{3}{*}{50 train envs} &leap &17 &16 &11 &11 \\
+% &director &2 &2 &2 &2 \\
+% &baseline &2 &2 &2 &2 \\
+%  \midrule
+% \multirow{3}{*}{100 train envs} &leap &15 &10 &7 &9 \\
+% &director &2 &2 &2 &2 \\
+% &baseline &2 &2 &2 &2 \\
+%  \midrule
+% \multirow{3}{*}{inf train envs} &leap &\textbf{32} &5 &7 &3 \\
+% &director &2 &2 &2 &2 \\
+% &baseline &\textbf{NO} &\textbf{NO} &\textbf{NO} &\textbf{NO} \\
+% \bottomrule
+% \multicolumn{6}{c}{\scriptsize $t$ threshold: $0.05$.} \\
+% \multicolumn{6}{c}{\scriptsize Effect size set to be the difference of the means of the compared pairs \citep{colas2018random}.} \\
+% \multicolumn{6}{c}{\scriptsize Cells are \textbf{bold} if results \textbf{NOT significant} or \textbf{insufficient seeds for statistical power}.} \\
+% \multicolumn{6}{c}{\scriptsize For significant cases, the minimum number of seeds for statistical power $0.2$ is provided.} \\
+% \end{tabular}
+% \label{tab:once}
+% \end{table}
+
+% As we can observe from the tables, generally there is significant evidence of generalization advantage in \Skipper{} variants compared to the other methods, especially when the number of training environments are between $25$ to $100$. Additionally, as expected, \textbf{\Skipper{}-regen} displays more dominating performance compared to that of \textbf{\Skipper{}-once}.
+
+% \begin{table}[!htp]\centering
+% \caption{\textbf{\Skipper{}-regen} \vs{} others: significance \& power}
+% \begin{tabular}{c|c|c|c|c|c}\toprule
+%  &method \textbackslash task difficulty &0.25 &0.35 &0.45 &0.55 \\
+%  \midrule
+% \multirow{3}{*}{1 train envs} &leap &\textbf{32} &\textbf{NO} &\textbf{NO} &\textbf{NO} \\
+% &director &16 &13 &\textbf{23} &10 \\
+% &baseline &\textbf{NO} &\textbf{NO} &\textbf{NO} &\textbf{NO} \\
+%  \midrule
+% \multirow{3}{*}{5 train envs} &leap &\textbf{NO} &\textbf{NO} &\textbf{NO} &\textbf{NO} \\
+% &director &\textbf{33} &\textbf{NO} &\textbf{NO} &\textbf{NO} \\
+% &baseline &6 &8 &4 &5 \\
+%  \midrule
+% \multirow{3}{*}{25 train envs} &leap &10 &7 &5 &4 \\
+% &director &2 &2 &2 &2 \\
+% &baseline &2 &2 &2 &2 \\
+%  \midrule
+% \multirow{3}{*}{50 train envs} &leap &6 &4 &3 &3 \\
+% &director &2 &2 &2 &2 \\
+% &baseline &2 &2 &2 &2 \\
+%  \midrule
+% \multirow{3}{*}{100 train envs} &leap &7 &3 &3 &2 \\
+% &director &2 &2 &2 &2 \\
+% &baseline &2 &2 &2 &2 \\
+%  \midrule
+% \multirow{3}{*}{inf train envs} &leap &15 &3 &2 &2 \\
+% &director &2 &2 &2 &2 \\
+% &baseline &\textbf{NO} &\textbf{NO} &\textbf{35} &5 \\
+% \bottomrule
+% \multicolumn{6}{c}{\scriptsize $t$ threshold: $0.05$.} \\
+% \multicolumn{6}{c}{\scriptsize Effect size set to be the difference of the means of the compared pairs \citep{colas2018random}.} \\
+% \multicolumn{6}{c}{\scriptsize Cells are \textbf{bold} if results \textbf{NOT significant} or \textbf{insufficient seeds for statistical power}.} \\
+% \multicolumn{6}{c}{\scriptsize For significant cases, the minimum number of seeds for statistical power $0.2$ is provided.} \\
+% \end{tabular}
+% \label{tab:regen}
+% \end{table}
+
+\subsection{Validation of Claims}
+This sub-section focuses on validating the two important claims of advantages brought by the \Skipper{} framework: 1) this framework is compatible with stochasticity and 2) empirically validate if the agent's performance is as described as the theorem.
+
+\subsubsection{Validation of Effectiveness on Stochastic Environments}
+We present the performance evolution (throughout training) of the agents in stochastic variants of \RDS{}. We modify \RDS{} dynamics by implementing $\epsilon$-greedy actions, \ie{}, with probability $\epsilon = 0.1$, each action is changed into a random action. We present the $50$-training tasks performance evolution in Fig.~\ref{fig:50_envs_stoch}. The results validate the compatibility of our agents with stochasticity in environmental dynamics. Notably, the performance of the baseline deteriorated to worse than even \Director{} with the injected stochasticity.
+
+\begin{figure}[htbp]
+\centering
+\subfloat[training, $\delta = 0.4$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_50_envs_stoch_0.pdf}}
+\hfill
+\subfloat[OOD, $\delta = 0.25$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_50_envs_stoch_1.pdf}}
+\hfill
+\subfloat[OOD, $\delta = 0.35$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_50_envs_stoch_2.pdf}}
+\hfill
+\subfloat[OOD, $\delta = 0.45$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_50_envs_stoch_3.pdf}}
+\hfill
+\subfloat[OOD, $\delta = 0.55$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_50_envs_stoch_4.pdf}}
+
+\caption[Evaluation Performance of Agents in \textbf{Stochastic} Environments]{\textbf{Evaluation Performance of Agents in \textbf{Stochastic} Environments}: $\epsilon$-greedy style randomness is added to each primitive action with $\epsilon=0.1$. Each agent is trained with $50$ tasks and each curve is processed from $20$ seed runs.}
+\label{fig:50_envs_stoch}
+\end{figure}
+
+\subsubsection{Accuracy of Proxy Problems \& Checkpoint Policies}
+
+We present in Fig.~\ref{fig:50_envs_GT} the results on the accuracy of proxy problems as well as the checkpoint policies of the \textbf{\Skipper{}-once} agents, trained with $50$ tasks. We created two variants of \textbf{\Skipper{}-once} based on the DP-solved ground truths.
+
+Concurring with our previous theoretical analyses, these results indicate that the performance of \Skipper{} was indeed bottlenecked by the accuracy of the proxy problem estimation on the high-level and the optimality of the checkpoint policy on the lower level. 
+
+Notably, the results for the generalization performance across training tasks, as in \textbf{a)} of \ref{fig:50_envs_GT}, indicate that the lower-than-expected performance is an outcome composed of errors in the two levels, the sub-optimality of the low-level policy as well as the inaccuracies of the proxy problem estimates.
+
+\begin{figure}[htbp]
+\centering
+\subfloat[training, $\delta = 0.4$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_50_envs_GT_0.pdf}}
+\hfill
+\subfloat[OOD, $\delta = 0.25$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_50_envs_GT_1.pdf}}
+\hfill
+\subfloat[OOD, $\delta = 0.35$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_50_envs_GT_2.pdf}}
+\hfill
+\subfloat[OOD, $\delta = 0.45$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_50_envs_GT_3.pdf}}
+\hfill
+\subfloat[OOD, $\delta = 0.55$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_50_envs_GT_4.pdf}}
+
+\caption[Evaluation Performance of \Skipper{}-once \vs{} Oracle Agents]{\textbf{Evaluation Performance of \Skipper{}-once \vs{} Oracle Agents}: both the \textit{optimal policy} and \textit{optimal plan} variants are assisted by ground truths solved by DP. The default deterministic setting induces the fact that combining optimal policy and optimal plan results in $1.0$ success rate. The figures suggest that the learned agent is limited by errors both in the proxy problem estimation and the checkpoint policy $\pi$. Each agent is trained with $50$ tasks and each curve is processed from $20$ seed runs. }
+\label{fig:50_envs_GT}
+\end{figure}
+
+
+\subsection{Ablation Studies}
+\label{sec:skipper_ablation}
+
+We use the following ablation studies to verify the effectiveness of each proposed component of the \Skipper{} framework as well as certain experimental settings. These experiments are mainly done with the more lightweight \textbf{\Skipper{}-once} variant on $50$ training tasks.
+
+\subsubsection{Spatial Abstraction}
+We present in Fig.~\ref{fig:50_envs_once_local} the ablation results on the spatial abstraction component with \textbf{\Skipper{}-once} variant, trained with $50$ tasks. The alternative component, without the spatial abstraction, is an MLP on a flattened full state. The results confirm significant advantage in terms of generalization performance as well as sample efficiency in training, introduced by spatial abstraction.
+
+\begin{figure}[htbp]
+\centering
+\subfloat[training, $\delta = 0.4$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_50_envs_once_local_0.pdf}}
+\hfill
+\subfloat[OOD, $\delta = 0.25$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_50_envs_once_local_1.pdf}}
+\hfill
+\subfloat[OOD, $\delta = 0.35$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_50_envs_once_local_2.pdf}}
+\hfill
+\subfloat[OOD, $\delta = 0.45$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_50_envs_once_local_3.pdf}}
+\hfill
+\subfloat[OOD, $\delta = 0.55$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_50_envs_once_local_4.pdf}}
+
+\caption[Ablation for Spatial Abstraction on \Skipper{}-once agent]{\textbf{Ablation for Spatial Abstraction on \Skipper{}-once agent}: each compared method is trained with $50$ environments and each curve is processed from $20$ seed runs.}
+\label{fig:50_envs_once_local}
+\end{figure}
+
+\subsubsection{Training Initialization: uniform \vs{} same as evaluation}
+This set of experiments is used to justify the changes in initialization, that we previously introduced to accelerate the experiments. We compare the agents' performance with and without uniform initial state distribution. The non-uniform starting state distributions introduce additional difficulties in terms of exploration. As Presented in Fig.~\ref{fig:50_envs_non_uniform}, these results are obtained from training on $50$ tasks. We conclude that given similar computational budget, using non-uniform initialization only slows down the learning curves without introducing significant changes to our conclusions, and thus we use the new initialization setting throughout this chapter by default.
+
+\begin{figure}[htbp]
+\centering
+\subfloat[training, $\delta = 0.4$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_50_envs_non_uniform_0.pdf}}
+\hfill
+\subfloat[OOD, $\delta = 0.25$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_50_envs_non_uniform_1.pdf}}
+\hfill
+\subfloat[OOD, $\delta = 0.35$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_50_envs_non_uniform_2.pdf}}
+\hfill
+\subfloat[OOD, $\delta = 0.45$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_50_envs_non_uniform_3.pdf}}
+\hfill
+\subfloat[OOD, $\delta = 0.55$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_50_envs_non_uniform_4.pdf}}
+
+\caption[Ablation Results on $50$ Training Tasks without Uniform Initial State Distributions]{\textbf{Ablation Results on $50$ Training Tasks without Uniform Initial State Distributions}: each curve is processed from $20$ seed runs.}
+\label{fig:50_envs_non_uniform}
+\end{figure}
+
+\subsubsection{Planning over Proxy Problems}
+We provide additional results for the readers to intuitively understand and validate the effectiveness of planning over proxy problems, which is the core to this chapter, This is done by comparing the results of \textbf{\Skipper{}-once} with a baseline \textbf{\Skipper{}-goal} that blindly selects the task goal as its target all the time. We present the results based on $50$ training tasks in Fig.~\ref{fig:50_envs_once_always_goal}. Concurring with our vision on temporal abstraction, we can see that by utilizing proxy problems and solving more manageable sub-problems leads to faster convergence. The \textbf{\Skipper{}-goal} variant catches up later when the policy slowly improves to be capable of solving longer distance navigation.
+
+\begin{figure}[htbp]
+\centering
+\subfloat[training, $\delta = 0.4$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_50_envs_once_always_goal_0.pdf}}
+\hfill
+\subfloat[OOD, $\delta = 0.25$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_50_envs_once_always_goal_1.pdf}}
+\hfill
+\subfloat[OOD, $\delta = 0.35$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_50_envs_once_always_goal_2.pdf}}
+\hfill
+\subfloat[OOD, $\delta = 0.45$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_50_envs_once_always_goal_3.pdf}}
+\hfill
+\subfloat[OOD, $\delta = 0.55$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_50_envs_once_always_goal_4.pdf}}
+
+\caption[Ablation Result for the Effectiveness of Proxy Problems]{\textbf{Ablation Result for the Effectiveness of Proxy Problems}: Each agent is trained with $50$ tasks and each curve is processed from $20$ seed runs.}
+\label{fig:50_envs_once_always_goal}
+\end{figure}
+
+\subsubsection{Vertex Pruning}
+We want to validate if the proposed $k$-medoids based vertex pruning technique is useful and could produce better generalization abilities by improving the quality of the proxy problems.
+
+In all previous experiments, each proxy problem is reduced from $32$ vertices to $12$ with $k$-medoids. We compare the performance of the default $32\to12$ configuration against a baseline that generates $12$-vertex proxy problems without pruning and present the results in Fig.~\ref{fig:50_envs_once_no_prune}.
+
+From these results, we can observe that generating more checkpoints than needed then pruning produce higher quality proxy problems than directly generating the exact number of checkpoints without pruning. And thus, we can deduce that the proposed pruning process not only increases the generalization but also the stability of performance. 
+
+\begin{figure}[htbp]
+\centering
+\subfloat[training, $\delta = 0.4$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_50_envs_once_no_prune_0.pdf}}
+\hfill
+\subfloat[OOD, $\delta = 0.25$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_50_envs_once_no_prune_1.pdf}}
+\hfill
+\subfloat[OOD, $\delta = 0.35$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_50_envs_once_no_prune_2.pdf}}
+\hfill
+\subfloat[OOD, $\delta = 0.45$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_50_envs_once_no_prune_3.pdf}}
+\hfill
+\subfloat[OOD, $\delta = 0.55$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_50_envs_once_no_prune_4.pdf}}
+
+\caption[Ablation Results on $50$ Training Tasks for $k$-medoids Vertex Pruning]{\textbf{Ablation Results on $50$ Training Tasks for $k$-medoids Vertex Pruning}: each curve is processed from $20$ seed runs.}
+\label{fig:50_envs_once_no_prune}
+\end{figure}
+
+\subsection{Sensitivity Studies}
+\label{sec:skipper_sensitivity}
+In this sub-secction, we conduct experimental studies to understand how sensitive the proposed \Skipper{} framework is to certain important hyperparameters.
+
+\subsubsection{Number of Checkpoints in Proxy Problem}
+\label{sec:sensitivity_num_checkpoints}
+
+We now conduct a sensitivity study on the number of checkpoints (number of vertices) in each proxy problem. We present the results of \textbf{\Skipper{}-once} on $50$ training tasks with different numbers of post-pruning checkpoints (all reduced from $32$ by pruning), in Fig.~\ref{fig:50_envs_once_ckpts}. From the results, we can see that as long as the number of checkpoints is above $6$, \Skipper{} exhibits good performance. We therefore chose $12$, the one with a rather small computation cost, as the default hyperparameter. 
+
+As a default, for our experiments, we adopted the episodic success rate as the performance metric, because using discounted return would cause high variance in the curves without intuitive upper bounds depicting the upper limit of the agents' performances. This choice of metric induces a tradeoff, since this metric does not differentiate the agents taking longer timesteps to succeed in tasks. This acknowledgement is also relevant for this sensitivity study.
+
+When there are too many overcrowded checkpoints each potentially contributing to planning errors, more sub-optimal decisions emerge. Thus, we expect with even more checkpoints, the performance will actually decrease.
+
+\begin{figure}[htbp]
+\centering
+\subfloat[training, $\delta = 0.4$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_50_envs_once_ckpts_0.pdf}}
+\hfill
+\subfloat[OOD, $\delta = 0.25$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_50_envs_once_ckpts_1.pdf}}
+\hfill
+\subfloat[OOD, $\delta = 0.35$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_50_envs_once_ckpts_2.pdf}}
+\hfill
+\subfloat[OOD, $\delta = 0.45$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_50_envs_once_ckpts_3.pdf}}
+\hfill
+\subfloat[OOD, $\delta = 0.55$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_50_envs_once_ckpts_4.pdf}}
+
+\caption[Sensitivity of \Skipper{}-once to Number of Checkpoints in Proxy Problem]{\textbf{Sensitivity of \Skipper{}-once to Number of Checkpoints in Proxy Problem}: Each agent is trained with $50$ tasks. All curves are processed from $20$ independent seed runs. The error bars are $95\%$ confidence intervals.}
+\label{fig:50_envs_once_ckpts}
+\end{figure}
+
+\subsection{Summary of Experiments}
+Within the scope of the previous experiments, we conclude that \Skipper{} provides significant benefits for generalization; And it can achieve even better generalization when exposed to more training tasks;
+
+From the content presented above, we can deduce additionally that: 
+
+\begin{itemize}[leftmargin=*]
+\item{} Spatial abstraction based on the local perception field is crucial for the generalization abilities;
+\item{} \Skipper{} performs well by reliably decomposing the given tasks, and achieving the sub-tasks robustly. Its performance is bottleneck-ed by the accuracy of the estimated proxy problems as well as the checkpoint policies. This matches well with our theory;
+\item{} \LEAP{} in its original form fails to generalize well within its original form and can generalize better when combined with the ideas proposed in this project; We believe that \Director{} may generalize better only in domains where long and informative trajectory collection is possible;
+\item{} We verified empirically that, \Skipper{} is compatible with stochasticity, as expected.
+\end{itemize}

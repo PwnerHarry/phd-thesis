@@ -1,0 +1,79 @@
+\chapter{Introduction}
+\label{sec:intro}
+Reinforcement Learning (RL) is a methodology for learning through trial-and-error, aiming to reinforce behaviors that yield long-term benefits in sequential decision-making scenarios. Recent advances have been driven by integrating RL with artificial Neural Networks (NNs), leading to successes like mastering strategic games such as Chess and Go \citep{silver2016mastering}, achieving superhuman performance in pixel-based Atari games \citep{schrittwieser2019mastering}, etc. However, current RL systems still struggle when deployed in real-world contexts, primarily due to challenges in generalizing their learned capabilities to environments different from those in which they were trained \citep{igl2019generalization,quinonero2022dataset}. This ``generalization gap'' significantly restricts both the application and academic interest in RL \citep{ada2024diffusion}.
+
+Recent studies suggest that this limitation stems from RL agents' inadequate reasoning capabilities when dealing with Out-Of-Distribution (OOD) scenarios \citep{alver2022understanding,langosco2022goal}. Many agents rely solely on intuition-based decision-making (akin to system-1 thinking from \citet{daniel2017thinking}) (including both model-free and background planning model-based methods), or cannot make necessary longer-term plans \citep{daniel2017thinking,zhao2024consciousness}. These insights have spurred the development of agents capable of adaptive reasoning in novel situations, which is the central theme of this thesis.
+
+\section{Thesis Overview}
+
+This thesis explores enhancing generalization in RL agents by granting them reasoning capabilities inspired by human higher-level cognitive functions. The structure of this thesis is as follows:
+
+\textbf{Part I: Literature Review on Background Knowledge}:
+
+\begin{itemize}[leftmargin=*]
+\item
+In Chap.~\ref{cha:basics} (Page.~\pageref{cha:basics}), I provide an overview of the literature and introduce foundational concepts of reinforcement learning that are pertinent to the subsequent chapters.
+\item
+In Chap.~\ref{cha:prelim} (Page.~\pageref{cha:prelim}), I discuss more advanced concepts, covering deep reinforcement learning, generative modeling with deep learning, attention mechanisms, model-based reinforcement learning, and related experimental methodologies. This chapter prepares readers who have a basic understanding of reinforcement learning for the content in Part II, by establishing necessary background knowledge.
+\end{itemize}
+
+\textbf{Part II: Methodology \& Original Research Findings}:
+
+\begin{itemize}[leftmargin=*]
+% \item
+% Chap.~\ref{cha:methodology} (Page.~\pageref{cha:methodology}) summarizes the methodologies used for the research contributions of this thesis.
+\item
+Chap.~\ref{cha:CP} (Page.~\pageref{cha:CP}), inspired by the OOD generalization abilities facilitated by consciousness, introduces bottleneck mechanism, allowing a decision-time planning agent to dynamically focus its reasoning on the relevant aspects of the state based on its instantaneous intent. This bottleneck mechanism, which achieves ``spatial abstraction'', enables significant Out-Of-Distribution (OOD) systematic generalization abilities.
+\item
+Chap.~\ref{cha:skipper} (Page.~\pageref{cha:skipper}), inspired by spatial and temporal abstraction abilities in human planning, builds upon the bottleneck mechanism and proposes a framework named \Skipper{} that automatically decomposes an overall given task into smaller and more manageable steps. This framework shows potential to be robust in distributional shifts and compositional long-term planning, by focusing attention on relevant parts of the environment (spatial) and aspects of the future (temporal);
+\item
+Chap.~\ref{cha:delusions} (Page.~\pageref{cha:delusions}) discovers a commonly shared failure mode / safety risk of planning agents which rely on the generated observations / states / goals. This failure mode resembles hallucinations and the resulting delusional behaviors in the human brain. Inspired by understanding of how human brains address delusions, we propose general solutions that enable agents to autonomously and preemptively avoid issues such as blindly trusting hallucinated targets.
+\end{itemize}
+
+The 3 main chapters on the methodologies and original research findings are in lock-steps to serve as the milestones for the thesis topic. Each main chapter serves as the basis for the upcoming chapters, \ie{}, Chap.~\ref{cha:skipper} is based on the findings of Chap.~\ref{cha:CP} and Chap.~\ref{cha:delusions} is based on both Chap.~\ref{cha:CP} \& Chap.~\ref{cha:skipper}. We present a chart for the relationship among the contributions in Part II, illustrated with key ideas and methodologies, in Fig.~\ref{fig:fig_thesis_projects}.
+
+\begin{figure}
+\centering
+\includegraphics[width=0.6\textwidth]{figures/miscellaneous/fig_thesis_projects.pdf}
+\caption[Main Chapters in this Thesis (Research Methodologies \& Original Findings)]{\textbf{Main Chapters in this Thesis (Research Methodologies \& Original Findings)}: Chap.~\ref{cha:CP} (\nameref{cha:CP}) is heavily influenced by human \textbf{conscious planning}, and proposes a \textbf{spatial abstraction} process, which is later combined organically with \textbf{temporal abstraction}, to create the \Skipper{} framework in Chap.~\ref{cha:skipper} (\nameref{cha:skipper}). The \Skipper{} framework embraces \textbf{goal-conditioned planning}, which utilizes \textbf{temporal abstraction}. \textbf{Goal-conditioned planning} agents, \Skipper{} included, suffer from delusions in planning. Chap.~\ref{cha:delusions} (\nameref{cha:delusions}) takes inspiration from how the human brain addresses delusional behaviors, to propose \textbf{delusion mitigation} strategies that allow \textbf{target-assisted planning} agents to preemptively and autonomously address delusional planning behaviors during training. The proposed future work encompasses all the key inspirations and contributions (Sec.~\ref{sec:future_work}, Page.~\pageref{sec:future_work}).}
+\label{fig:fig_thesis_projects}
+\end{figure}
+
+\textbf{Part III: Discussions \& Conclusions}:
+
+\begin{itemize}[leftmargin=*]
+\item
+Chap.~\ref{cha:conclusion} (Page.~\pageref{cha:conclusion}) provides a comprehensive scholarly discussion of all findings, including how the contributions met the objectives of the doctoral study, the impact of the contributions, their limitations, along with directions on future work.
+\end{itemize}
+
+\section{Summary of Original Contributions to Knowledge}
+
+The following are the \textit{short} summaries of the original contributions of this thesis. Chap.~\ref{cha:conclusion} expands on the detailed contributions of each main chapter.
+
+Chap.~\ref{cha:CP} describes a decision-time planning agent that can dynamically focus on interesting partial aspects of the state for better OOD generalization, a first in the literature. The core bottleneck mechanism is a top-down attention computation inspired by conscious reasoning in humans \citep{dehane2017consciousness}. This work is one of the first works utilizing transformer-based architectures in computational decision-making. This work also opens up discussions about the ways in which ideas from higher-level cognitive functions in humans can be used to improve the generalization abilities of computational decision-making agents.
+
+Chap.~\ref{cha:skipper} proposes a framework that automatically decomposes an overall task into smaller and more manageable steps. \Skipper{} utilizes a constrained form of option-based planning, which builds on the consciousness-inspired spatial abstraction mechanisms in Chap.~\ref{cha:CP} when considering each steps. Novel mechanisms are proposed to learn a problem decomposition consistent with the agent's own capabilities of handling each decomposed step. We also prove that the performance of the approach is guaranteed under practical conditions. This work shows that spatially and temporally abstract planning, like that of humans, is not only viable, but its performance can also be guaranteed RL agents, showing a promising direction of option-based planning.
+
+Chap.~\ref{cha:delusions} points out an important flaw in planning agents that utilize generated state targets: they blindly trust hallucinated targets. Many agents do not fully understand the targets that they can propose during planning. Inspired by the belief evaluation system in the human brain, we propose a method to reject hallucinated targets by properly learning a target feasibility evaluator. To be able to learn such an evaluator effectively, we analyze the categories of delusions that can appear in a model generating state targets, and propose a comprehensive solution that can reliably address delusional behaviors resulting from such targets. The solution is a combination of update rules, model architectures as well as hindsight relabeling strategies to solve the mismatch between the planning agents' training and behaviors. In experiments, we find that our solution significantly reduces feasibility errors and the frequency of delusional behaviors, and boosts OOD generalization performance compared to existing methods. Instead of blindly optimizing for sample efficiency, this is the first work that systematically discusses the failure modes of relevant planning agents, introducing the hallucination-delusion perspective. These ideas could be used to save future research efforts from continuing todevelop delusional / unsafe agents.
+
+\section{Collaborator Contributions Breakdown}
+For work presented in the 3 main chapters of this thesis, I assumed the primary role in formulating the methodological ideas, mathematical components and proofs, writing, implementation and experiments. My co-authors mostly participated in discussions and brainstorming sessions, providing feedback, contributing to proofreading, and improving communication.
+
+\subsection{Chap.~\ref{cha:CP} - \nameref{cha:CP}}
+The collaborators of work presented in this chapter include myself, Zhen Liu, Sitao Luan, Shuyuan Zhang, Doina Precup and Yoshua Bengio. Some contents of this chapter are published as a conference paper at the Conference on Neural Information Processing Systems (NeurIPS) 2021 \citep{zhao2021consciousness}.
+
+Yoshua and I brainstormed and formulated the original abstract idea of the chapter. Then, Sitao, Doina and I discussed the high-level design to implement the ideas. I supervised Zhen and Shuyuan in developing detailed algorithmic designs, implementations as well as experiments. All collaborators proofread the accepted manuscript and contributed to its communication.
+
+\subsection{Chap.~\ref{cha:skipper} - \nameref{cha:skipper}}
+The collaborators of work presented in this chapter include myself, Safa Alver, Harm van Seijen, Romain Laroche, Doina Precup and Yoshua Bengio. Some contents of this chapter are published as a conference paper at the International Conference on Learning Representations (ICLR) 2024 \citep{zhao2024consciousness}.
+
+Based on earlier brainstorming with Doina and Yoshua, Harm, Romain and I brainstormed and formulated the ideas of the chapter and identified the milestones needed. I conducted all the detailed algorithmic designs, implementations as well as experiments. Safa helped me implement a baseline in the experiments. I collaborated with Romain closely on proving the theoretical results. All collaborators proofread the accepted manuscript and contributed to the communications.
+
+\subsection{Chap.~\ref{cha:delusions} - \nameref{cha:delusions}}
+The collaborators of work presented in this chapter include myself, Tristan Sylvain, Romain Laroche, Doina Precup and Yoshua Bengio. Some contents of this chapter are published as a conference paper at the International Conference on Machine Learning (ICML) 2025 \citep{zhao2024delusions}.
+
+I conceived the idea of this chapter after realizing that certain delusional behaviors I observed in Chap.~\ref{cha:skipper} are commonly shared among existing methods. Then, Tristan and I developed the ideas for a controlled environment to identify the causes of these behaviors. I implemented the environments, conducted the experiments, and identified the types and root causes of delusions and wrote the manuscript. Romain, Doina and I investigated the theoretical aspects of the chapter and drafted the formal definitions. All collaborators proofread the manuscript and contributed to the communications.
+
+\section{Copyright}
+
+Most figures used in this work are directly created by me. Some figures are original for this thesis, while some others are taken from the related conference papers that I have published as the first author, for which I hold the copyright.

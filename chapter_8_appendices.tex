@@ -1,0 +1,352 @@
+\chapter{APPENDICES}\label{cha:appendix}
+
+In this chapter, the assistive details of the thesis will be provided.
+
+\section[Auxiliaries—CP]{Technical Auxiliaries for Chap.~\ref{cha:CP}}
+\label{app:cp_aux}
+\label{sec:CP_aux}
+
+The source code of our experiments of this chapter can be found at \url{https://github.com/mila-iqia/conscious-planning}.
+
+\subsection{Additional Experimental Insights}
+\label{app:cp_insights}
+
+\subsubsection{Integer Observations}
+\label{app:cp_integer}
+For MiniGrid environments \citep{chevalierboisvert2018minigrid}, the observations consist of integers encoding the object and the status of the grids. We found that for the UP models with these integer observations, the transformer layers are not sufficiently capable to capture the dynamics. Such problem can be resolved after increasing the depth of the FC layer depth by another hidden layer. This is one of the reasons why we prioritized on using CP models for the observation-level learning of \Dyna{}, \ie{}, CP models can handle integer features without deepening.
+
+Similarly, we have tested the effect of increasing the depth of the linear transformations in SA layers. We did not observe significance in the enhancement of the performance, in terms of model learning or RL performance.
+
+\subsubsection{Addressing Memorization with Noisy Shift}
+\label{app:cp_memorization}
+We discovered a generic trick to enforce better generalization based on our state-set encoding: if we use fixed integer-based positional tails which correspond to the absolute coordinates of the objects, we can add a global noise to all the $x$ and $y$ components in a set whenever one is encoded. By doing so, the coordinate systems would be randomly shifted every time the agent updates itself. Such shifts would prevent the agent from memorizing based on absolute positions. This trick could potentially enhance the agents' understanding of the dynamics even if in a classical static RL setting, under which the environments are fixed.
+
+\subsection{Experiment Configurations}
+\label{app:cp_configs}
+The source code for this project is implemented with TensorFlow 2.x and open-source at \url{https://github.com/mila-iqia/Conscious-Planning}.
+
+Multi-Processing: we implement a multiprocess configuration similar to that of Ape-X \cite{horgan2018distributed}, where $8$ explorers collect and sends batches of $64$ training transitions to the central buffer, with which the trainer trains. A pause signal is introduced when the trainer cannot consume fast enough \st{}, the uni-process and the multiprocess implementation have approximately the same performance, excluding the wall time.
+
+Feature Extractor: We used the Bag-Of-Word (BOW) encoder suggested in \cite{hui2020babyai}. Since the experiments employ a fully-observable setting, we did not use frame stack. In MiniGrid-BabyAI environments, a grid is represented by three integers, and three trainable embeddings are created for the BOW representation. For each object (grid), each integer feature would be first independently transformed into embeddings, which are then mean-pooled to produce the final feature. The three embeddings are learnable and linear (with biases).
+
+Stop criterion: Each run stops after $2.5 \times 10^{6}$ agent-environment interactions.
+
+Replay Buffer: We used Prioritized Experience Replay (PER) of size $10^{6}$ \citep{schaul2016prioritized}, the same as in \cite{hessel2017rainbow}. We do not use the weights on the model updates, only the TD updates.
+
+\textbf{Optimization}: We have used Adam \cite{kingma2014adam} with learning rate $2.5 \times 10^{-4}$ and epsilon $1.5\times {10}^{-4}$. The learning rate is the same as in \cite{mnih2015human}. Our tests show that using $6.25 \times 10^{-5}$, as suggested in \cite{hessel2017rainbow}, would be too slow. The batch size is the same for both value estimator training and model training, $64$. The training frequency is the same as in \cite{hessel2017rainbow}: every $4$ agent-environment interactions.
+
+$\gamma$: Same as in \cite{hessel2017rainbow}. $0.99$.
+
+In the experiments, we wanted functional architectures with minimal sizes for all the components. Thus, globally for the set-input architectures, we have limited the depth of the transformer layers to be $N=1$ wherever possible. The FC components are MLPs with $1$-hidden layer of width $64$. Exceptionally, we find that the effectiveness of the value estimator needs to be guaranteed with at least $3$-transformer layers. For the distributional output, while the value estimator has an output of $4$ atoms, the reward estimator has only $2$.
+
+\textbf{Transformers}: For the SA sub-layers, we have used $8$ heads globally. For the FC sub-layers, we have used 2-layer MLP with $64$ hidden units globally. All the transformer related components have only one transformer layer except for that of the value estimator, which has three transformer layers before the pooling. We found that the shallower value estimators exhibit unstable training behaviors when used in the non-static settings.
+
+\textbf{Set Representation}: The length of an object in the state set has length $32$, where the feature is of length $24$ and the positional embedding has length $8$. Note that the length of objects must be divisible by the number of heads in the attentions. The positional embeddings are trainable, however their initial values are constructed by the absolute $xy$ coordinates from each corner of the gridworld ($4 \times 2 = 8$). We found that without such initialization, the positional embedding would collapse.
+
+\textbf{Action Embedding}: Actions are embedded as one-hot vectors with length $8$.
+
+\textbf{Planning Steps}: for each planning session, the maximum number of simulations based on the learned transition model is 5.
+
+\textbf{Exploration}: $\epsilon$ takes value from a linear schedule that decreases from $0.95$ to $0.01$ in the course of $10^{6}$ agent-environment interactions, same as in \cite{hessel2017rainbow}. For evaluation, $\epsilon$ is fixed to be $10^{-3}$.
+
+\textbf{Distributional Outputs}: We have used distributional outputs \cite{bellemare2017distributional} for the reward and value estimators. $2$ atoms for reward estimation (mapping the interval of $[0, 1]$) and $4$ atoms for value estimation (mapping the interval of $[0, 1]$).
+
+\textbf{Regularization}: We find that layer norm is crucial to guarantee the reproducibility of the performance with set-representations. We apply layer normalization \cite{ba2016layer} in the sub-layers of transformers as well as at the end of the encoder and model dynamics outputs. This applies for the NOSET baseline as well.
+
+\textbf{modelfree baseline}: We did not use the full Rainbow agent \cite{hessel2017rainbow} as the baseline, because we want to keep our agent as minimalist as possible. The agent does not need the dueling head and the noisy net components to perform well, according to our preliminary ablation tests.
+
+
+\section[Auxiliaries—Skipper]{Technical Auxiliaries for Chap.~\ref{cha:skipper}}
+\label{app:skipper_aux}
+\label{sec:skipper_aux}
+
+The source code of our experiments of this chapter can be found at \url{https://github.com/mila-iqia/skipper}.
+
+\subsection{\texorpdfstring{\Skipper{}}{Skipper}}
+\label{sec:skipper_exp_details}
+
+\subsubsection{Training}
+The agent is based on a distributional prioritized double DQN. All the trainable parameters are optimized with Adam at a rate of $2.5\times10^{-4}$ \citep{kingma2014adam}, with a gradient clipping by value (maximum absolute value $1.0$). The priorities for experience replay sampling are equal to the per-sample training loss.
+
+\subsubsection{Full State Encoder}
+The full-state encoder is a $2$-layer residual block (with kernel size 3 and doubled intermediate channels) combined with the $16$-dimensional bag-of-words embedder of BabyAI \citep{hui2020babyai}.
+
+\subsubsection{Partial State Selector (Spatial Abstraction)}
+The selector $\sigma$ is implemented with single-head (not multihead, thus the output linear transformation of the default multihead attention implementation in PyTorch is disabled.) top-$4$ attention, with each local perceptive field of size $8\times8$ cells. Layer normalization \citep{ba2016layer} is used before and after the spatial abstraction.
+
+\subsubsection{Estimators}
+The estimators, which operate on the partial states, are $3$-layered MLPs with $256$ hidden units.
+
+An additional estimator for termination is learned, which instead of taking a pair of partial states as input, takes only one, and is learned to classify terminal states with cross-entropy loss. The estimated distance from terminal states to other states would be overwritten with $\infty$. The internal $\gamma$ for intrinsic reward of \red{$\pi$} is $0.95$, while the task $\gamma$ is $0.99$
+
+The estimators use C51 distributional TD learning \citep{dabney2018distributional}. That is, the estimators output histograms (\softmax{} over vector outputs) instead of scalars. We regress the histogram towards the targets, where these targets are skewed histograms of scalar values, towards which KL-divergence is used to train. At the output, there are $16$ bins for each histogram estimation (value for policy, reward, distance).
+
+% \subsubsection{Recovering Discounts from Distances}
+
+% \begin{wrapfigure}[21]{R}{0.32\textwidth}
+%   \begin{center}
+%   \includegraphics[width=0.3\textwidth]{fig_support_override.pdf}
+%   \end{center}
+%   \caption[Estimating Distributions of Discount and Distance with the Same Histogram]{\textbf{Estimating Distributions of Discount and Distance with the Same Histogram}: by transplanting the support with the corresponding discount values, the distribution of the cumulative discount can be inferred.}
+% \label{fig:support_override}
+% \end{wrapfigure}
+
+% We recover the distribution of the cumulative discount by replacing the support of the discretized truncated distances with the corresponding discounts, as illustrated in Fig.~\ref{fig:support_override}. This addresses the problem of $\doubleE[\gamma^D] \neq \gamma^{\doubleE[D]}$, as the probability of having a trajectory length of 4 under policy $\pi$ from state $s_t$ to  $s_\odot$ is the same as a trajectory having discount $\gamma ^ 4$.
+
+\subsubsection{Checkpoint Generator}
+Although \Skipper{} is designed to have the generator work on state level, that is, it should take learned state representations as inputs and have state representations as outputs, in our experiments, the generator actually operates on observation inputs and outputs. This is because of the preferred compactness of the observations and the equivalence to full states under full observability in our experiments.
+
+The context extractor $\scriptE_c$ is a $32$-dimensional BabyAI BOW embedder. It encodes an input observation into a representation of the episodic context.
+
+The partial description extractor $\scriptE_z$ is made of a $32$-dimensional BabyAI BOW embedder, followed by $3$ aforementioned residual blocks with $3\times3$ convolutions (doubling the feature dimension every time) in between, ended by global maxpool and a final linear projection to the latent weights. The partial descriptions are bundles of $6$ binary latents, which could represent at most $64$ ``kinds'' of checkpoints. Inspired by VQ-VAE \citep{van2017neural}, we use the argmax of the latent weights as partial descriptions, instead of sampling according to the \softmax{}-ed weights. This enables easy comparison of current state to the checkpoints in the partial description space, because each state deterministically corresponds to one partial description. We identify reaching a target checkpoint if the partial description of the current state matches that of the target.
+
+The fusing function first projects linearly the partial descriptions to a $128$-dimensional space and then uses deconvolution to recover an output which shares the same size as the encoded context. Finally, a residual block is used, followed by a final $1x1$ convolution that downscales the concatenation of context together with the deconv'ed partial description into a 2D weight map. The agent's location is taken to be the {\fontfamily{qcr}\selectfont argmax} of this weight map.
+
+The whole checkpoint generator is trained end-to-end with a standard VAE loss. That is the sum of a KL-divergence for the agent's location, and the entropy of partial descriptions, weighted by $2.5 \times 10^{-4}$, as suggested in \url{https://github.com/AntixK/PyTorch-VAE}. Note that the per-sample losses in the batches are not weighted for training according to priority from the experience replay.
+
+We want to mention that if one does not want to generate non-goal terminal states as checkpoints, we could also seek to train on reversed $\langle S^\odot, S_t \rangle$ pairs. In this case, the checkpoints to reconstruct will never be terminal.
+
+\subsubsection{HER}
+Each experienced transition is further duplicated into $4$ hindsight transitions at the end of each episode. Each of these transitions is combined with a randomly sampled observation from the same trajectory as the relabelled ``goal''. The size of the hindsight buffer is extended to $4$ times that of the baseline that does not learn from hindsight accordingly, that is, $4\times 10^{6}$.
+
+\subsubsection{Planning}
+As introduced, we use value iteration over options \citep{sutton1999between} to plan over the proxy problem represented as an SMDP. We use the matrix form $Q = R_{S \times S} + \Gamma V$, where $R$ and $\Gamma$ are the estimated edge matrices for cumulative rewards, respectively. Note that this notation is different from the ones we used in the manuscript. The checkpoint value $V$, initialized as all-zero, is taken on the maximum of $Q$ along the checkpoint target (the actions for $\mu$) dimension. When planning is initiated during decision time, the value iteration step is called $5$ times. We do not run until convergence, since with low-quality estimates during the early stages of the learning, this would be a waste of time. The edges from the current state towards other states are always set to be one-directional, and the self-loops are also removed. This means the first column as well as the diagonal elements of $R$ and $\Gamma$ are all zeros. Besides pruning edges based on the distance threshold, as introduced in the main paper, the terminal estimator is also used to prune the matrices $R$ and $\Gamma$: the rows corresponding to the terminal states are all zeros.
+
+The only difference between the two variants, \ie{}, \Skipper{}-once and \Skipper{}-regen is that the latter variant would discard the previously constructed proxy problem and construct a new one every time the planning is triggered. This introduces more computational effort while lowering the chance that the agent gets ``trapped'' in a bad proxy problem that cannot form effective plans to achieve the goal. If such a situation occurs with \Skipper{}-regen, as long as the agent does not terminate the episode prematurely, a new proxy problem will be generated to hopefully address the issue. Empirically, as we have demonstrated in the experiments, such variant in the planning behavior results in generally significant improvements in terms of generalization abilities at the cost of extra computation.
+
+\subsubsection{Hyperparameter Tuning}
+Some hyperparameters introduced by \Skipper{} can be located in the pseudocode in Alg.~\ref{alg:skipper}.
+
+\paragraph{Timeout and Pruning Threshold} 
+Intuitively, we tied the timeout to be equal to the distance pruning threshold. The timeout kicks in when the agent thinks a checkpoint can be achieved within \eg{}, $8$ steps, but already spent $8$ steps yet still could not achieve it. 
+
+This leads to how we tuned the pruning (distance) threshold: we fully used the advantage of our experiments on DP-solvable tasks: with a snapshot of the agent during its training, we can sample many $\langle$ starting state, target state $\rangle$ pairs and calculate the ground truth distance between the pair, as well as the failure rate of reaching from the starting state to the target state given the current policy $\pi$, then plot them as the $x$ and $y$ values respectively for visualization. We found such curves to evolve from high failure rate at the beginning, to a monotonically increasing curve, where at small true distances, the failure rates are near zero. We picked $8$ because the curve starts to grow explosively when the true distances are more than $9$. 
+
+\paragraph{$k$ for $k$-medoids}
+We tuned this by running a sensitivity analysis on \Skipper{} agents with different $k$’s, whose results are presented previously in this Appendix.
+
+Additionally, we prune from $32$ checkpoints because $32$ checkpoints could achieve (visually) a good coverage of the state space as well as its friendliness to NVIDIA accelerators. 
+
+\paragraph{Size of local Perception Field}
+We used a local perception field of size 8 because our baseline model-free agent would be able to solve and generalize well within $8\times8$ tasks, but not larger. Roughly speaking, our spatial abstraction breaks down the overall tasks into $8\times8$ sub-tasks, which the policy could comfortably solve.
+
+\paragraph{Model-free Baseline Architecture}
+The baseline architecture (distributional, Double DQN) was heavily influenced by the architecture used in the previous work \citep{zhao2021consciousness}, which demonstrated success on similar but smaller-scale experiments ($8\times8$). The difference is that while then we used computationally heavy components such as transformer layers on a set-based representation, we replaced them with a simpler and effective local perception component. We validated our model-free baseline performance on the tasks proposed in \citet{zhao2021consciousness}.
+
+\subsection{\texorpdfstring{\LEAP{}}{LEAP}}
+\label{sec:leap_exp_details}
+
+\subsubsection{Adaptation for Discrete Action Spaces}
+The \LEAP{} baseline has been implemented from scratch for our experiments, since the original open-sourced implementation\footnote{\url{https://github.com/snasiriany/leap}} was not compatible with environments with discrete action spaces. \LEAP{}'s training involves two pretraining stages, that are, generator pretraining and distance estimator pretraining, which were originally named the VAE and RL pretrainings. Despite our best effort, that is to be covered in detail, we found that \LEAP{} was unable to get a reasonable performance in its original form after rebasing it on a discrete model-free RL baseline.
+
+\subsubsection{Replacing the Model}
+We tried to identify the reasons why the generalization performance of the adapted \LEAP{} was unsatisfactory: we found that the original VAE used in \LEAP{} is not capable to handle even few training tasks, let alone generalize well to the evaluation tasks. Even by combining the idea of the context / partial description split (still with continuous latents), during decision time, the planning results given by the evolutionary algorithm (Cross Entropy Method, CEM, \citet{rubinstein1997optimization}) almost always produce delusional plans that are catastrophic in terms of performance. This was why we switched into \LEAP{} the same conditional generator we proposed in the paper, and adapted CEM accordingly, due to the change from continuous latents to discrete.
+
+We also did not find that using the pretrained VAE representation as the state representation during the second stage helped the agent's performance, as the paper claimed. In fact, the adapted \LEAP{} variant could only achieve decent performance after learning a state representation from scratch in the RL pretraining phase. Adopting \Skipper{}'s splitting generator also disables such choice.
+
+\subsubsection{Replacing TDM}
+The original distance estimator based on Temporal Difference Models (TDM) also does not show capable performance in estimating the length of trajectories, even with the help of a ground truth distance function (calculated with DP). Therefore, we switched to learning the distance estimates with our proposed method. Our distance estimator is not sensitive to the sub-goal time budget as TDM and is hence more versatile in environments like that was used in the main paper, where the trajectory length of each checkpoint transition could highly vary. Like for \Skipper{}, an additional terminal estimator has been learned to make \LEAP{} planning compatible with the terminal lava states. Note that this \LEAP{} variant was trained on the same sampling scheme with HER as in \Skipper{}.
+
+The introduced distance estimator, as well as the accompanying full-state encoder, are of the same architecture, hyperparameters, and training method as those used in\Skipper{}. The number of intermediate subgoals for \LEAP{} planning is tuned to be $3$, which close to how many intermediate checkpoints \Skipper{} typically needs to reach before finishing the tasks. The CEM is called with $5$ iterations for each plan construction, with a population size of $128$ and an elite population of size $16$. We found no significant improvement in enlarging the search budget other than additional wall time. The new initialization of the new population is by sampling a $\epsilon$-mean of the elite population (the binary partial descriptions), where $\epsilon = 0.01$ to prevent the loss of diversity. Because of the very expensive cost of using CEM at decision time and its low return of investment in terms of generalization performance, during the RL pretraining phase, the agent performs random walks over uniformly random initial states to collect experience.
+
+\subsection{\texorpdfstring{\Director{}}{Director}}
+\label{sec:director_exp_details}
+
+\begin{SCfigure}[][htbp]
+\includegraphics[width=0.25\textwidth]{figures/Skipper/fig_rds_director.png}
+\caption[An Example for Simplified Observations for \Director{}]{\textbf{An Example for Simplified Observations for \Director{}}}
+  \label{fig:rds_director}
+\end{SCfigure}
+
+\subsubsection{Adaptation}
+We based our experiments of Director \citep{hafner2022deep} on the publicly available code (\url{https://github.com/danijar/director}) released by the authors. Except for a few changes in the parameters, which are depicted in Tab. \ref{tab:director_configs}, we have used the default configuration provided for Atari environments. Note that as the Director version in which the worker receives no task rewards performed worse in our tasks, we have used the version in which the worker receives scaled task rewards (referred to as ``Director (worker task reward)'' in \citet{hafner2022deep}). This agent has also been shown to perform better across various domains in \citet{hafner2022deep}.
+
+\paragraph{Encoder} Unlike \Skipper{} and \LEAP{} agents, the Director agent receives as input a simplified RGB image of the current state of the environment (see Fig.~\ref{fig:rds_director}). This is because we found that Director performed better with its original architecture, which was designed for image-based observations. We removed all textures to simplify the RGB observations.
+
+\begin{table}[htbp]
+    \centering
+    \caption[Changed Hyperparameters of \Director{}]{\textbf{Changed Hyperparameters of \Director{}}}
+    
+    \begin{tabular}{|p{4cm}|p{5cm}|}
+    \hline
+    Parameter & Value \\
+    \hline
+    replay\_size & 2M \\
+    replay\_chunk & 12 \\
+    imag\_horizon & 8 \\
+    env\_skill\_duration & 4 \\
+    train\_skill\_duration & 4 \\
+    worker\_rews & \{extr: 0.5, expl: 0.0, goal: 1.0\} \\
+    sticky & False \\ 
+    gray & False \\
+    \hline
+    \end{tabular}
+    \label{tab:director_configs}
+\end{table}
+
+\subsubsection{Failure Modes: Bad Generalization, Sensitive to Short Trajectories}
+
+\paragraph{Training Performance} We investigated why Director is unable to achieve good training performance (Fig.~\ref{fig:50_envs}). 
+%even with very few training tasks, where generalization difficulties should be relatively low. 
+As Director was designed to be trained solely on environments where it is able to collect long trajectories to train a good enough recurrent world model \citep{hafner2022deep}, we hypothesized that Director may perform better in domains where it is able to interact with the environment through longer trajectories by having better recurrent world models (\ie{}, the agent does not immediately die as a result of interacting with specific objects in the environment). To test this, we experimented with variants of the used tasks, where the lava cells are replaced with wall cells, so the agent does not die upon trying to move towards them (we refer to this environment as the ``walled'' environment). The corresponding results on $50$ training tasks are depicted in Fig.~\ref{fig:50_envs_director_wall}. As can be seen, the Director agent indeed performs better within the training tasks than in the environments with lava. 
+
+\paragraph{Generalization Performance} We also investigated why Director is unable to achieve good generalization (Fig.~\ref{fig:50_envs}). As Director trains its policies solely from the imagined trajectories predicted by its learned world model, we believe that the low generalization performance is due to Director being unable to learn a good enough world model that generalizes to the evaluation tasks. The generalization performances in both the ``walled'' and regular environments, depicted in Fig.~\ref{fig:50_envs_director_wall}, indeed support this argument. Similar to what we did in the main paper, we also present experimental results for how the generalization performance changes with the number of training environments. Results in Fig.~\ref{fig:num_envs_all_director_wall} show that the number of training environments has little effect on its poor generalization performance.
+
+\begin{figure}[htbp]
+\centering
+\subfloat[training, $\delta = 0.4$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_50_envs_director_wall_0.pdf}}
+\hfill
+\subfloat[OOD, $\delta = 0.25$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_50_envs_director_wall_1.pdf}}
+\hfill
+\subfloat[OOD, $\delta = 0.35$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_50_envs_director_wall_2.pdf}}
+\hfill
+\subfloat[OOD, $\delta = 0.45$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_50_envs_director_wall_3.pdf}}
+\hfill
+\subfloat[OOD, $\delta = 0.55$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_50_envs_director_wall_4.pdf}}
+
+\caption[Results of Director on Tasks with Lavas \vs{} on Tasks with Walls]{\textbf{Results of Director on Tasks with Lavas \vs{} on Tasks with Walls}: the results are obtained with $50$ training tasks. The results for Director-lava (same as in the main paper) are obtained from $20$ independent seed runs.}
+\label{fig:50_envs_director_wall}
+\end{figure}
+
+
+\begin{figure}[htbp]
+\centering
+\subfloat[training, $\delta = 0.4$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_num_envs_all_director_wall_0.pdf}}
+\hfill
+\subfloat[OOD, $\delta = 0.25$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_num_envs_all_director_wall_1.pdf}}
+\hfill
+\subfloat[OOD, $\delta = 0.35$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_num_envs_all_director_wall_2.pdf}}
+\hfill
+\subfloat[OOD, $\delta = 0.45$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_num_envs_all_director_wall_3.pdf}}
+\hfill
+\subfloat[OOD, $\delta = 0.55$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.22\textwidth]{figures/Skipper/fig_num_envs_all_director_wall_4.pdf}}
+
+\caption[Generalization Performance of \Director{} on Different Numbers of ``Walled'' Training Tasks]{\textbf{Generalization Performance of Agents on Different Numbers of Training Tasks (while \Director{} runs on the walled environments)}: besides \Director{}, each data point and corresponding error bar (95\% confidence interval) are processed from the final performance from $20$ independent seed runs. \Director{}-wall's results are obtained from $20$ runs.}
+\label{fig:num_envs_all_director_wall}
+\end{figure}
+
+
+\section[Auxiliaries—Delusions]{Technical Auxiliaries for Chap.~\ref{cha:delusions}}
+\label{app:delusions_aux}
+
+The source code of our experiments of this chapter can be found at \url{https://github.com/mila-iqia/delusions}.
+
+\subsection{Implementation of \pertaskstr{}}
+\pertaskstr{} takes the advantage of the fact that training is done on limited number of fixed task instances. We give each task a unique task identifier. At relabeling time, \pertaskstr{} samples observations among all the transitions marked with the same identifier as the current training task instance. This can be trivially implemented with individual auxiliary experience replays that store only the experienced states with memory-efficient pointers to the buffered $x_t$'s in the main HER.
+
+\subsection{Implementation Details for Experiments}
+\label{sec:details_implement}
+
+\subsubsection{\Skipper{}}
+\label{sec:skipper_exp_details_delusions}
+
+Our adaptation of \Skipper{} over the original implementation\footnote{\url{https://github.com/mila-iqia/Skipper}} in \citet{zhao2024consciousness} is minimal. We have additionally added two simple vertex pruning procedures before the vertex pruning based on $k$-medoids. These two procedures include: 1) prune vertices that are duplicated, and 2) prune vertices that cannot be reached from the current state with the estimated connectivity.
+
+We implemented a version of generator that can reliably handle both \RDS{} and \SSM{} with the same architecture. Please consult {\fontfamily{qcr}\selectfont{models.py}} in the submitted source code for its detailed architecture.
+
+For \SSM{} instances, since the state spaces are $4$-times bigger than those of \RDS{}, we ask that \Skipper{} generate twice the number of candidates (both before and after pruning) for the proxy problems.
+
+All other architectures and hyperparameters are identical to the original implementation.
+
+For better adaptability during evaluation and faster training, \Skipper{} variants in Chap.~\ref{cha:skipper} keeps the constructed proxy problem for the whole episode during training and replanning only triggers a re-selection, while during evaluation, the proxy problems are always erased and re-constructed.
+
+The quality of our adaptation of the original implementation can be assured by the fact the \FE{} variant's performance matches the original on \RDS{}.
+
+\subsubsection{\LEAP{}}
+\label{sec:leap_exp_details_delusions}
+
+\LEAP{}'s training involves two pretraining stages, that are, generator pretraining and distance estimator training.
+
+We improved upon the adopted discrete-action space compatible implementation of \LEAP{} \citep{nasiriany2019planning} from \citet{zhao2024consciousness}. We gave \LEAP{} additional flexibility to use fewer subgoals along the way to the task goal if necessary. Also, we improved upon the Cross-Entropy Method (CEM), such that elite sequences would be kept intact in the next population during the optimization process. We increased the base population size of each generation to $512$ and lengthened the number of iterations to $10$.
+
+For \RDS{} $12 \times 12$ and \SSM{} $8 \times 8$, at most $3$ subgoals are used in each planned path. We find that employing more subgoals greatly increases the burden of CEM and lower the quality of the evolved subgoal sequences, leading to bad performance that cannot be effectively analyzed.
+
+We used the same generator architecture and hyperparameters as in \Skipper{}. All other architectures and hyperparameters remain unchanged.
+
+Similarly for \LEAP{}, for better adaptability during evaluation, the planned sequences of subgoals are always reconstructed whenever planning is triggered. While in training, the sequence is reused and only a subgoal selection is conducted.
+
+The quality of our adaptation of the original implementation can be assured by the fact the \FE{} variant's performance matches the original on \RDS{}.
+
+\subsection{Applying the Evaluator on \Dreamer{}v2} % TODO(H): move to the chapter?
+\label{sec:appendix_dreamer}
+
+To demonstrate that our approach functions effectively in more generalist settings, such as those with continuous state and action spaces and partial observability, and to illustrate its application to a modern TAP agent, we integrated our proposed evaluator into \Dreamer{}v2 \citep{hafner2020mastering}. The evaluator filters out potentially delusional values from infeasible states that might distort the $\lambda$-returns derived from imagined trajectories. Given the technical complexity ahead, we suggest readers familiarize themselves with \Dreamer{}v2 before continuing \citep{hafner2020mastering}.
+
+Although \Dreamer{}v2's stochastic states are discrete and could theoretically support similarity assessments, their design ensures they rarely repeat due to numerous possibilities, making them too random for our similarity function $h$. Consequently, we rely on the deterministic state representations $\bm{s}$, which also prompt us to more thought-provoking discussions.
+
+\Dreamer{}v2 operates as a \Dyna{}-like method, employing fixed-horizon rollouts with autoregressively imagined states as targets. Lacking a built-in similarity function $h$, it provides an opportunity to showcase how we construct $h$ in our approach. Our method incorporates various realism aspects to assess state similarity between the next state and the target state, influencing the branching in Eq.~\ref{eq:rule_feasibility_gamma} during evaluator updates \citep{russell2025gaia2}.
+
+\subsubsection{How to craft $h$: Observational Realism}
+Observational realism, \ie{}, the similarity in terms of state representations is the first obvious criteria for $h$.
+
+Theoretically, one might simplistically assume state equivalence by defining an $\epsilon$-ball around the target state. However, in practice, an $\epsilon$-ball based on $L_2$ distances proves inadequate due to varying representation scales. Instead, we employ Mahalanobis distances, which better accommodate the representations' distributional variations.
+
+To be more precise, we use an Exponential Moving Average (EMA) of the covariance of concatenated current-next deterministic state pairs $[\bm{s}_t, \bm{s}_{t+1}]$ to calculate the Mahalanobis distances between the next state pair $[\bm{s}_t, \bm{s}_{t+1}]$ and target state pair $[\bm{s}_t, \hat{\bm{s}}_{t+1}]$.
+
+\subsubsection{How to craft $h$: Behavioral Realism}
+The second focus is behavioral realism: does the agent exhibit similar behavior (\eg{}, in value, reward, and discount estimations) across the states ($\bm{s}_{t+1}$ \& $\hat{\bm{s}}_{t+1}$)?
+
+Here, we apply Mahalanobis distances to pairs of current and future values, rewards, and discounts, ensuring the states appear similar from the agent's perspective.
+
+Caution is required with action-realism. Naively applying our method to one-hot encoded discrete actions could result in a singular covariance matrix for the $\epsilon$-ball computation.
+
+Preliminary Atari experiments suggest setting distinct $\epsilon$ values for different components—state representations, value estimations, reward estimations, and discount estimations.
+
+\subsubsection{How to Relabel: Just-In-Time (JIT) Construction}
+
+Since \Dreamer{}v2 samples sub-trajectories and computes state representations autoregressively, we forgo a separate HER for storing source-target pairs, opting instead for Just-In-Time (JIT) construction. Designed for single-environment training and evaluation, \Dreamer{}v2 allows us to implement a \FEG{} variant on agent-sampled sub-trajectories. Initial tests indicate a balanced mix of \episodestr{} (within sub-trajectories) and \generatestr{} performs effectively.
+
+\subsubsection{How to Reject: Three Criteria for $\lambda$-returns}
+
+\Dreamer{}v2 leverages its model to imagine future states and values, using these, along with intermediate rewards and discounts, to compute $\lambda$-returns for each origin state.
+
+For such strategy, we implemented the following $3$ criteria for rejecting the imagined states:
+
+\begin{enumerate}[leftmargin=*]
+\item \textbf{Transition-wise Rejection}: If a next state seems unlikely to follow from the current state, its value is deemed untrustworthy. This process is repeated for all imagined transitions. Notably, a state rejected as infeasible in one transition might still be reachable elsewhere, so subsequent states are not automatically discarded.
+
+\item \textbf{Point-to-Point (P2P) Rejection for Targets}: Starting from a replay-sampled base state, we assess whether each imagined state is reachable, regardless of steps taken. This counters hallucinated targets from accumulated errors over the imagination horizon \citep{talvitie2017self}, excluding such states from value estimation targets.
+
+\item \textbf{P2P Rejection for Current States}: Entirely unreachable states are excluded as current states in multi-step value updates, though subsequent states may remain viable.
+\end{enumerate}
+
+\begin{figure*}[htbp]
+\centering
+\captionsetup{justification = centering}
+\includegraphics[width=1.00\textwidth]{figures/Delusions/fig_truncated_lambda_returns.pdf}
+\caption[Truncated $\lambda$-Returns with Rejected States for \Dreamer{}]{\textbf{Truncated $\lambda$-Returns with Rejected States for \Dreamer{}}: the original $\lambda$-returns are illustrated in the top row, while the truncated returns are illustrated in the bottom row with the differences marked in \textcolor{red}{red}. Our strategy ensures that the critic targets in the trajectories can be maximally preserved for updates. The states right before the rejected ones will have no trustworthy critic targets and are thus not updated. Starting from the last rejected state, all critic targets remain the same as the originals.
+}
+\label{fig:truncated_lambda_returns}
+\end{figure*}
+
+The first two criteria yield a binary mask to truncate $\lambda$-returns in sampled sub-trajectories, excluding untrustworthy values while preserving horizons for reliable ones. Our repository offers an efficient implementation, maintaining the complexity as the original, un-truncated $\lambda$-returns. The behavior of the (critic) target-based rejection is presented in Fig.~\ref{fig:truncated_lambda_returns}.
+
+The third criterion masks updates to wholly infeasible imagined states. By examining the rejection rate by the horizon index, the evaluator can also be used to understand how long the imagined trajectories are likely to be trustworthy and thus adjust the associated hyperparameters.
+
+We developed a standalone, user-friendly evaluator (implemented in PyTorch) that integrates seamlessly into TAP agents like \Dreamer{}v2, employing its own optimizer and target networks for robust learning when activated. Please check \codeword{evaluator.py} in the source code repository.
+
+We tuned the hyperparameters using the \codeword{Atari} environments and found that both the autoregressive estimations of distances and the P2P distances (towards the target states) in the sampled and imagined trajectories roughly converge to the estimated ground truth values, which are deduced from their time indices. This is the best we can do for environments without ground truth access.
+
+Regrettably, our Atari100k preliminary results with $10^5$ interactions show negligible performance gains over the baseline \citep{kaiser2019model}. This is likely because the state representations of \Dreamer{} usually takes a significant portion of training to stabilize and for the evaluator to adapt to. The differences are expected to show with prolonged experiments where a significant number of updates will be made after the state representations stabilize. Limited computational resources prevented our extended experiments, and we invite those with greater capacity to investigate further.
+
+Our \Dreamer{} implementations can be found in the source code repository.

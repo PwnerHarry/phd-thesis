@@ -1,0 +1,773 @@
+\chapter{Literature Review: Model-Based Deep RL}
+\label{cha:prelim}
+\textit{\small This chapter presents the discussions of related works to the contributions of this thesis, as well as some more advanced preliminary background knowledge for understanding the methods used in later chapters.}
+
+\minitoc
+
+\section{Deep RL: Neural Network based Methods}
+When function approximators in approximate RL methods are implemented with Neural Networks (neural nets, NNs)s, the resulting agents are often recognized as \textbf{Deep RL} agents, or \textbf{DRL} agents for short. This means, at least the value estimator will be parameterized as a neural network and will be optimized using a surrogate loss with certain neural network optimizers. The neural network optimizers are mostly based on gradient descent, \ie{}, evolving the parameters roughly towards the direction of lower losses following the suggestion of the gradient directions. Gradient descent in neural nets is efficiently implemented with the Back-Propagation (BP) algorithm, which takes advantage of the nature of neural nets being composite functions and the chain rule of gradients \citep{rumelhart1986learning}.
+
+Neural nets are a popular choice for function approximator in RL, because of their abilities to learn complex mappings from observations or state representations to actions or values. While tabular RL algorithms struggle with high-dimensional observation / state / action spaces, neural networks allow for efficient generalization in large or continuous spaces by learning compact, useful representations, enabling RL agents to solve previously intractable problems. Notably, neural nets can approximate value functions (\eg{}, Q-values or V-values) or policy functions. This ability paved the way for the renaissance of modern DRL, including algorithms like Deep Q-Networks (\DQN{}, to be introduced in detail soon) and policy gradient methods\footnote{We will skip the discussions of policy gradient methods in this thesis, since they are not too relevant to the contributions in the following chapters.}.
+
+Despite being subjected to the dangers of the deadly triad, we know from practice that DRL's value estimations, once meticulously tuned, can acquire convergence. Indeed, when we discuss DRL methods, we are most likely in a territory without guarantees.
+
+To prepare the readers for a clear understanding of the methods used in the following chapters, we introduce one of the most impactful RL method - \DQN{} \citep{mnih2015human}, that is fundamental to DRL methods dealing with discrete action spaces.
+
+\subsection{\texorpdfstring{\DQN{}}{DQN}}
+\label{sec:DQN}
+
+Based on Q-Learning (introduced in Sec.~\ref{sec:q_learning}, Page.~\pageref{sec:q_learning}, originally proposed in \citet{watkins1992q}), Deep Q-Network (\DQN{}) is a DRL method operating in discrete action spaces, based on off-policy Q-value estimation without an explicitly parameterized policy \citep{mnih2015human}. Before the emergence of \DQN{}, DRL methods suffered greatly from training instabilities and sensitivity to hyperparameters. As a truly groundbreaking contribution, \DQN{} achieved generally human-level performance on Atari games, and kickstarted the consequent progress in DRL. \DQN{} set itself apart with the following features:
+
+\textbf{State Encoder \& Value Estimator as Neural Networks}: both the state representation encoder and the value estimator on top are implemented with neural networks and optimized with neural network parameter optimizers. \DQN{} is fully parameterized, with learned state representations extracted from high-dimensional pixel-based observations.
+
+\textbf{Target Network for Training Stability}: the agent maintains a time-delayed clone of the ``policy network'', \ie{}, the bundle containing the state encoder and the value estimator. The clone is named the ``target network'' and is responsible for providing TD update targets for value estimator training (of the policy network), based on the experimental observation that this would produce more stable update targets for value estimator learning. Periodically, the parameters of the target network will be synchronized with the latest parameters in the policy network.
+
+\textbf{Q-learning with Training Loss}: In \DQN{}, the value estimator is updated by the gradient descent-based optimizer to minimize a loss function. \DQN{} uses surrogate loss functions, such as $L_2$ or Huber loss, to pull the estimated values of the current state towards an update target $y$ constructed in the Q-learning fashion (introduced in Sec.~\ref{sec:q_learning}, Page.~\pageref{sec:q_learning}). For example, over a sampled transition $\langle s, a, r, s', \omega'\rangle$, where $\omega'$ is a binary indicator of if the next state $s'$ is terminal, the simple $L_2$ surrogate loss takes the following form:
+
+$$\scriptL_{\text{\DQN{}}} \coloneqq (\hat{Q}_\theta(s,a) - y)^2$$
+
+where $y$, in \citet{mnih2015human} (the original \DQN{} paper), is an update target constructed with the help of the target network $\theta'$:
+
+\begin{singlespace}
+\begin{equation}
+\label{eq:DQN_target}
+y_{\text{\DQN{}}} \coloneqq \begin{cases}
+r &\text{if } \omega \text{ is true}\\
+r + \gamma \max_{a'}{\hat{Q}_{\theta'}(s',a')} &\text{otherwise}\\
+\end{cases}
+\end{equation}
+\end{singlespace}
+
+\phantomsection
+\label{sec:DDQN}
+
+An alternative method of constructing update targets, named double \DQN{} or \DDQN{} for short, has shown more promising performance against the overestimation problem of Q-learning induced by the $\max$ operator \citep{hasselt2015double}. With \DDQN{}, the update target is constructed jointly by the policy network $\theta$ and the target network $\theta'$:
+
+\begin{singlespace}
+\begin{equation}
+\label{eq:DDQN_target}
+y_{\text{\DDQN{}}} \coloneqq \begin{cases}
+r &\text{if } \omega \text{ is true}\\
+r + \gamma \hat{Q}_{\theta}(s',\argmax_{a'}{\hat{Q}_{\theta'}(s',a')}) &\text{otherwise}\\
+\end{cases}
+\end{equation}
+\end{singlespace}
+
+Note that notations are abused here for simplicity: since both the policy and the target networks have their own paired state encoder, thus the $s'$ input of $\hat{Q}_{\theta}$ and $\hat{Q}_{\theta'}$ are different, \ie{}, they are produced by their respective state encoders. 
+
+\begin{figure}[htbp]
+\centering
+\captionsetup{justification = centering}
+\includegraphics[width=0.8\textwidth]{figures/miscellaneous/fig_DQN.pdf}
+\caption[Dissection of \texorpdfstring{\DQN{}}{DQN}]{\textbf{Dissection of \DQN{}}: The policy network and the target network architectures are identical, both consists of a state encoder and a Q-value estimator. The target network is not trained, but updated periodically by synchronizing the parameters from the policy network. Only the policy network is trained through gradient descent-based optimization, and it can be extracted as an inference-only agent, \ie{}, all components except the policy network are for training purposes only. While in the literature, we often see the policy network as one whole unit, for more unified discussions, we decompose the policy network into the two components of the state encoder and the Q-value estimator.}
+\label{fig:DQN}
+\end{figure}
+
+\textbf{Stores and Trains on Transitions with Experience Replay}: \DQN{} stores the interaction history as transitions in the experience replay, and samples the transitions in minibatches to conduct optimization based on batched stochastic gradient descent. An \textbf{experience replay} is a buffer for the interaction history between the agent and the environment. The data buffered in the experience replay can be later used for learning purposes, and can be organized in different ways, such as transitions (in \DQN{}) or trajectories (in other methods). Agents that do not require the assistance of experience replay are often distinctively recognized as streaming methods \citep{elsayed2024streaming}.
+
+\textbf{$\epsilon$-greedy Exploration}: \DQN{} employs $\epsilon$-greedy exploration policy as the behavior policy. Let the target policy given the current value estimate be $\pi$, the $\epsilon$-greedy is defined as:
+
+\begin{singlespace}
+\begin{equation*}
+\pi_{\epsilon\text{-greedy}} = \begin{cases}
+\text{uniform random policy} &\text{\textit{w.p.} } \epsilon\\
+\pi(s) &\text{otherwise}\\
+\end{cases}
+\end{equation*}
+\end{singlespace}
+
+Note that because of \DQN{}'s compatibility with off-policy learning, its implementations often take advantage of a controlled annealing from $\epsilon=1.0$ to a very small value to control the exploration-exploitation tradeoff within a limited agent-environment interaction budget. Detailed implementations can be flexible.
+
+An overall illustration of \DQN{}'s training and behaviors is presented in Fig.~\ref{fig:DQN}.
+
+\subsection{Distributional RL}
+\label{sec:distoutputs}
+
+Distributional RL is a useful DRL technique that enables the estimation of the \textit{distribution} of returns, instead of only the scalar expectation of the return. Distributional RL can be similarly analyzed through the lens of Bellman operators and contractions (as suggested in Sec.~\ref{sec:contraction}, Page.~\pageref{sec:contraction}), which will show that the convergence guarantees of scalar RL updates are preserved \citep{bellemare2017distributional}.
+
+\begin{figure}[htbp]
+\centering
+\captionsetup{justification = centering}
+\includegraphics[width=0.6\textwidth]{figures/miscellaneous/fig_distributionals.pdf}
+\caption[C51 Distributional Variant of \texorpdfstring{\DQN{}}{DQN} Value Estimators]{\textbf{C51 Distributional Variant of \DQN{} Value Estimators}: Q-value estimators output a prediction of values based on the input pair $\langle s, a \rangle$. For vanilla \DQN{}, the output is a scalar; For C51 \citep{bellemare2017distributional}, the output is similar to histograms where the bins within a certain range of support are preset. For the right side (C51), the support is set to be $\{0, 1, 2, 3, 4, 5\}$, and the outputs are \softmax{}-ed logits of the $6$-dimensional outputs from the value estimator.}
+\label{fig:distributionals}
+\end{figure}
+
+
+In short, distributional RL changes the architecture of the value estimator's function approximator from having a scalar output to having a vectorized output, where the vectorized output is a representation of certain estimated distributions, as shown in Fig.~\ref{fig:distributionals}. Naturally, the old surrogate losses used for scalar prediction must be also replaced, so they can help the predicted distributions converge to the update target distributions with the help of the gradient descent-based optimizers, depending on how the distributions are represented. 
+
+There are several popular choices for the representation of the estimated distributions. For the contents of this thesis, we are particularly interested in the so-called C51-style distributional outputs \citep{bellemare2017distributional}. 
+
+C51 outputs a histogram-like representation of a discretized distribution over a preset support over certain value ranges. A histogram over the preset support will be the output, where the bins of the histograms do not necessarily have to be uniform. The expectation can be recovered by a weighted sum over the preset support. The surrogate losses for convergence take the forms of Kullback-Leibler divergence (KL-divergence) and the update targets are the histograms converted from the scalar update targets bootstrapping the weighted-sum expectation estimates (Eq.~\ref{eq:DQN_target} \& Eq.~\ref{eq:DDQN_target}).
+
+% In the implementations of the projects, we adopt distributional outputs for the designs of the value and reward estimators.
+
+\phantomsection
+\label{sec:auxiliary_learners}
+
+C51 greatly alleviates the problem introduced by the difference in the magnitude of outputs, and thus agents with auxiliary learners (that learn to estimate not only the values) are less subjected to conflicts of training losses due to imbalanced magnitudes. \textbf{Auxiliary learners} are additional estimators introduced during the training, typically used to improve performance in a specific way or help the model learn more robust features. Auxiliary learners and their training signals - auxiliary losses, may not be the primary objective of the model, but are designed to assist the primary learner (the primary loss function) by providing supplementary guidance. Sometimes in RL, only the value estimator is recognized as the non-auxiliary learner, among all learners in the RL system.
+
+In this thesis, we by default used C51 distributional TD learning on all \DQN{}-based baseline and agents. That is, the estimators output histograms instead of scalars. We regress the histogram towards the targets, where these targets are skewed histograms of scalar values, towards which KL-divergence is used to train. 
+
+Also, in Chap.~\ref{cha:skipper}, we proposed a technique upon C51 distributional outputs, to interchangeably learn the distributions of cumulative discounts and cumulative distances simultaneously.
+
+\subsection{Goal-Conditioned RL: Source-Target Pairs \& Hindsight Relabeling}
+\label{sec:source_target_pair_hindsight_relabeling}
+Goal-conditioned RL is an extension of traditional RL where an agent's objective is to achieve specific goals rather than merely maximizing cumulative rewards. In MDPs, a goal is defined to be a set of states that match certain criteria, where such state set can be empty, a singleton or even infinite \citep{ghosh2018learning}.
+
+In goal-conditioned RL, the agent conditions its behaviors additionally on a goal (\eg{}, a target state or a desired outcome) at each timestep. This is to say that goal-conditioned agents must learn a \textbf{goal-conditioned policy} that, given both the current state and the goal, takes actions to achieve the goal effectively. The goals could come from the agent itself, or an external instructor that is a part of the environment, \etc{}. % To differentiate, when the goal provided to the agent is an outcome of its own decision-time planning, we call these goals \textbf{targets} and the agents \textbf{target-directed agents}. Target-directed agents often seek to decompose an overall given task into more abstract steps, each notated by a goal, and they are highly relevant to this thesis: the contribution of Chap.~\ref{cha:skipper} (Page.~\pageref{cha:skipper}) - the \Skipper{} framework is a target-directed agent and Chap.~\ref{cha:delusions} (Page.~\pageref{cha:delusions}) discusses how to address delusions in general target-directed frameworks.
+
+Goal-conditioned policies enable more flexible and adaptable learning, as the agent can generalize to different tasks by conditioning its behavior on various goals, rather than learning a separate policy for each task. From the viewpoint of options (introduced in Sec.~\ref{sec:options}, Page.~\pageref{sec:options}), this also mean that one single goal-conditioned policy may be used to substitute a whole set of options. Also, evidently, a goal-conditioned policy can also be viewed as a special case of constrained option, whose initiation set is the whole state space $\scriptS$ and the termination condition is the goal criterion.
+
+Some goal-conditioned agents can be viewed from the perspectives of the feudal RL framework, a hierarchical RL framework in which a high-level \textit{manager} provides low-level goals to its \textit{workers} \citep{dayan1992feudal,parr1997hierarchies,vezhnevets2017feudal}. Feudal RL framework is highly similar to the target-assisted planning framework, which my collaborators and I have abstracted for existing planning agents that utilizes generative models to produce targets to achieve (in Chap.~\ref{cha:delusions}, Page.~\pageref{cha:delusions}), whose emphases are rather on the generator-estimator duo, inspired by the belief formation and belief evaluation systems that underpin the delusion mechanisms in the human brain.
+
+Goal-conditioned agents often rely on ``source-target pairs'' for training, where ``source'' often represent a current state, \ie{}, the state that the agent should make decisions from, and the ``target'' correspond to one of the states that match the goal (a state that belongs to the set of states that match the goal criterion). Source-target pairs are organized training data that could be used to let the agents learn about the relationship between one state and another. Note that pairs do not need to be explicitly stored: for example, two ordinarily sampled transitions can be trivially assembled during training to form a source-target pair, as follows
+
+$$\langle s_1,a_1,r_1,s_1',w_1'\rangle \bigoplus \langle s_2,a_2,r_2,s_2',w_2'\rangle \rightarrow \langle s_1,a_1,r_1,s_1',w_1', s_2\rangle$$
+
+where $s_1$ acts as the source state and $s_2$ acts as the target state.
+
+There are many ways to construct a source-target pair, but undoubtedly, \textbf{Hindsight Experience Replay (HER)} is among the most popular \citep{andrychowicz2017hindsight}. HER's core mechanism is \textbf{hindsight relabeling}, where agent-environment interaction histories buffered in the experience replay while following their respective contemporary goals are relabeled with other goals (the ones that the agent was not following). Intuitively, this makes the agent pretend that certain experience was gathered when following the relabeled goals. 
+
+Training target-assisted planning agents with only contemporary targets (the ones being followed) can lead to poor performance \citep{dai2021diversity}, since contemporary targets may be low-quality, hard to achieve, or lack in diversity \citep{moro2022goaldirected,davchev2021wish}. The fact that hindsight relabeling creates much more diverse source-target pairs (compared to those with only the contemporary goals as targets) for the goal-conditioned estimators to generalize and gain deeper understanding of the relationship inside the source-target pairs, which in turn contributed to its massive success in training goal-conditioned policies.
+
+From another perspective, HER is crucial for enhancing \emph{sample efficiency} in goal-directed RL \citep{andrychowicz2017hindsight}, as it enables learning from failed experiences \citep{dai2021diversity}. We will discuss HER more in Sec.~\ref{sec:related_work_HER} (Page.~\pageref{sec:related_work_HER}), about its connections with our contributions and its existing limitations.
+
+Formally, HER augments a transition $\langle x_t, a_t, r_{t+1}, x_{t+1} \rangle$ with an additional observation $x^{\odot}$ (or its encoding), the relabeled target, creating a source-target pair, with one decision point for the current step and another for the relabeled target. \textbf{Relabeling strategies}, which correspond to how $x^{\odot}$ is selected, are critical for the performance of HER-trained agents \citep{shams2022addressing}. Most popular choices are \textit{trajectory-level}, meaning $x^{\odot}$ comes from the same trajectory as $x_t$. These include \futurestr{}, where $x^{\odot} = x_{t'}$ with $t' > t$, and \episodestr{}, with $0 \leq t' \leq T_\perp$.
+
+The introduction of HER greatly enhanced the sample efficiency of learning about experienced targets. Meanwhile, the incompleteness of the accompanying relabeling strategies planted a hidden risk of delusions towards hallucinated targets, which will be discussed later in Chap.~\ref{cha:delusions} (Page.~\pageref{cha:delusions}), where we will also discuss relabeling strategies in detail.
+
+\section{Deep Learning Preliminaries}
+\subsection{Generative Models: VAEs \& Conditional VAEs}
+\label{sec:VAE}
+
+Aiming to maximize the likelihood of the observed data through a latent variable model, Variational Autoencoders (VAEs) are a type of generative model that learn to approximate the distribution of training data. Given an observed dataset $\{ \bm{x} \}$, a VAE models the joint distribution $p(\bm{x}, \mathbf{z})$, where $\mathbf{z}$ represents its discovered latent variables \citep{kingma2013auto}. We illustrate the mechanism of VAEs in Fig.~\ref{fig:VAE_explanation}.
+
+\begin{figure}[htbp]
+\centering
+\captionsetup{justification = centering}
+\includegraphics[width=0.9\textwidth]{figures/miscellaneous/fig_VAE_explanation.pdf}
+\caption[VAE Mechanisms]{\textbf{VAE Mechanisms}: the encoder $q$ extracts parameters that define the distribution of the latent variable $z$, which is sampled and then used with the decoder $z$ to parameterize the likelihood of the reconstructed output $\hat{x}$. The gradient flows back from the output, to the decoder and the encoder. The gradient flow through the sampled $z$ is enabled by reparameterizing $z$ with the help of an external noise \citep{kingma2013auto}.
+}
+% ; In IQN \citep{dabney2018implicit}, the sample points over the CDF parameterized. 
+\label{fig:VAE_explanation}
+\end{figure}
+
+Despite the effort to model the joint $p(\bm{x}, \mathbf{z})$, the ultimate objective of a VAE is to maximize the marginal likelihood \( p(\bm{x}) \), which is given by:
+
+$$p(\bm{x}) = \int{p(\bm{x} | \mathbf{z}) p(\mathbf{z})} \, d\mathbf{z}$$
+
+However, directly computing this integral is intractable. To address this, VAEs use variational inference to approximate the true posterior $p(\bm{z} | \bm{x})$ with a simpler, tractable surrogate $q(\bm{z} | \bm{x})$.
+
+% https://gregorygundersen.com/blog/2021/04/16/variational-inference/
+
+Such variational approach involves maximizing the Evidence Lower Bound (ELBO), which is a lower bound on the log-likelihood of the data, which a VAE seeks to learn. We can derive the ELBO from the log of the marginal likelihood $p(\bm{x})$:
+
+\begin{align}
+\begin{split}
+\log p(\bm{x}) & = \log \int p(\bm{x} | \mathbf{z}) p(\mathbf{z}) \, d\bm{z} = \log \int \frac{q(\bm{z} | \bm{x})}{q(\bm{z} | \bm{x})} p(\bm{x} | \mathbf{z}) p(\mathbf{z}) \, d\bm{z} \\
+& = \mathbb{E}_{q(\bm{z} | \bm{x})} \left[ \log \frac{p(\bm{x}, \mathbf{z})}{q(\bm{z} | \bm{x})} \right] + \text{KL}(q(\bm{z} | \bm{x}) \| p(\bm{z} | \bm{x}))
+\end{split}
+\end{align}
+
+% By introducing a variational distribution \( q(\bm{z} | \bm{x}) \), we can rewrite this as:
+
+% \[
+% \log p(\bm{x}) = \log \int \frac{q(\bm{z} | \bm{x})}{q(\bm{z} | \bm{x})} p(\bm{x} | \mathbf{z}) p(\mathbf{z}) \, d\mathbf{z}
+% \]
+
+% This can be split into two terms:
+
+% \[
+% \log p(\bm{x}) = \mathbb{E}_{q(\bm{z} | \bm{x})} \left[ \log \frac{p(\bm{x}, \mathbf{z})}{q(\bm{z} | \bm{x})} \right] + \text{KL}(q(\bm{z} | \bm{x}) \| p(\mathbf{z}))
+% \]
+
+The first term is the ELBO, and the second term is the Kullback-Leibler (KL) divergence between the variational distribution and the prior over the latent variables, which will be discarded due to intractability. The ELBO can be expanded into two terms:
+
+\[
+\text{ELBO}(\theta, \phi) = \mathbb{E}_{q(\bm{z} | \bm{x})} \left[ \log p(\bm{x} | \mathbf{z}) \right] - \text{KL}(q(\bm{z} | \bm{x}) \| p(\mathbf{z}))
+\]
+
+In practice, the VAE learns the parameters \( \theta \) and \( \phi \) of the neural networks that parameterize \( p(\bm{x} | \mathbf{z}) \) and \( q(\bm{z} | \bm{x}) \), respectively, by maximizing the ELBO. %The loss function to be minimized is the negative ELBO:
+
+% \[
+% \mathcal{L}(\theta, \phi) = -\mathbb{E}_{q(\bm{z} | \bm{x})} \left[ \log p(\bm{x} | \mathbf{z}) \right] + \text{KL}(q(\bm{z} | \bm{x}) \| p(\mathbf{z}))
+% \]
+
+Maximizing the ELBO encourages the model to generate accurate reconstructions of the data while keeping the variational posterior close to the prior distribution. Depending on how the latent space is defined, the ELBO can be instantiated in different forms, some even with closed form solutions, such as in \citet{kingma2013auto}, where an encoder extracts from input the parameters for defining a normal distribution. In Chap.~\ref{cha:skipper}, we used the encoder to instead parameterize a discrete bottleneck consists of a bundle of categorical distributions, from which a joint sample is treated as $z$, used as a partial description of a state (see Sec.~\ref{sec:skipper_discrete_partial_desc}).
+
+A hyperparameter $\beta$ can be introduced to weight the two terms to control the learning, giving rise to $\beta$-VAE \citep{higgins2017beta}:
+
+$$ \mathcal{L}(\theta, \phi, \beta) = -\mathbb{E}_{q(\bm{z} | \bm{x})} \left[ \log p(\bm{x} | \mathbf{z}) \right] + \beta \cdot \text{KL}(q(\bm{z} | \bm{x}) \| p(\mathbf{z})) $$
+
+Here, $\beta$ is a scalar that controls the trade-off between the reconstruction term and the KL divergence term. When \( \beta = 1 \), this reduces to the standard VAE loss. 
+
+% However, by increasing \( \beta \), the regularization term (KL divergence) is given more weight, which encourages the model to learn a more structured and disentangled latent space. Conversely, if \( \beta \) is set to a value less than 1, the model will focus more on minimizing the reconstruction error and less on regularizing the latent space.
+
+% The introduction of $\beta$ allows for more flexibility in training VAEs, as it enables control over the trade-off between generating realistic data and obtaining a well-structured latent space. Larger values of $\beta$ tend to lead to more disentangled representations in the latent space, which can be useful for tasks such as semi-supervised learning or generative tasks where interpretability is important.
+
+The \textbf{Conditional VAE (CVAE)} is an extension of standard VAE, where both the encoder and the decoder are conditioned on additional information, such as class labels or other external attributes. This allows the model to generate data conditioned on specific variables, making it suitable for tasks like conditional goal generation, where the generated goals depend on information collected up to the current state.
+
+Formally, in a CVAE, the objective is to learn the conditional distribution $p(\bm{x} | \bm{y})$. This is done by learning the joint distribution $p(\bm{x}, \bm{y})$, where $\bm{y}$ is the condition, by marginalizing over latent $z$ in the joint $p(\bm{x}, \bm{y}, \mathbf{z})$. The encoder and decoder are modified as follows:
+
+\textbf{Encoder}: The distribution $q(\bm{z} | \bm{x}, \bm{y})$ is conditioned on both the data $\bm{x}$ and the condition $\bm{y}$.
+   
+\textbf{Decoder}: The likelihood $ p(\bm{x} | \mathbf{z}, \bm{y})$ is conditioned on both the latent $\mathbf{z}$ and the condition $\bm{y}$.
+
+The ELBO inequality for CVAE is:
+
+$$
+\log p(\bm{x} | \bm{y}) \geq \mathbb{E}_{q(\bm{z} | \bm{x}, \bm{y})} \left[ \log \frac{p(\bm{x}, \bm{z} | \bm{y})}{q(\bm{z} | \bm{x}, \bm{y})} \right]
+$$
+
+With the same algebra, this results in the following objective function (for minimization):
+
+$$
+\mathcal{L}_{\text{CVAE}}(\theta, \phi) = -\mathbb{E}_{q(\bm{z} | \bm{x}, \bm{y})} \left[ \log p(\bm{x} | \mathbf{z}, \bm{y}) \right] + \text{KL}(q(\bm{z} | \bm{x}, \bm{y}) \| p(\mathbf{z}))
+$$
+
+In Chap.\ref{cha:skipper} and Chap.\ref{cha:delusions}, we use CVAE in conjunction with hindsight experience replay to train generative models that can imagine distance future states, conditioning on the current state.
+
+\subsection{Attention}
+\label{sec:attention}
+
+Attention mechanisms, first popularized by \citet{bahdanau2014neural} in the context of machine translation, have evolved to become one of the most powerful and widely used tools in machine learning. Allowing models to focus on different parts of the input sequence or data, the ability of attention has made it central to language models powered by the Transformer architecture \citep{vaswani2017attention}. The ability to query sets of objects with varying degrees of attention has led to improvements in tasks such as question answering \citep{devlin2018bert}, image captioning \citep{xu2015show}, and even RL \citep{chen2021decision}. Through the introduction of mechanisms like multi-head attention and semi-hard attention, these models can capture more complex patterns and relationships within data, enabling a wide range of applications. One of the core contributions of this thesis, the consciousness-inspired - ``spatial abstraction'' mechanism, is implemented as a top-down semi-hard attention bottleneck, in Sec.~\ref{sec:CP_bottleneck} (Page.~\pageref{sec:CP_bottleneck}) and improved to work in synergy with temporal abstraction in Sec.~\ref{sec:skipper_spatial_abstraction} (Page.~\pageref{sec:skipper_spatial_abstraction}).
+
+To understand formally how attention works, we now revisit a generic set query procedure (Routine \ref{rtn:objectqueryset}), which is also illustrated in Fig.~\ref{fig:attention_query}.
+
+\begin{coloredroutine}{Querying a Set of objects $\{ \bm{x}_i \}$ with an Object $\bm{x}$}{objectqueryset}
+\begin{singlespace}
+\begin{enumerate}[leftmargin=*]
+    \item The object $\bm{x}$ is transformed into a \textbf{query vector}. This is generally done via a linear transformation, typically denoted as:
+    
+    $$\bm{q} = W_q \bm{x}$$
+    
+    where \( W_q \) is a learnable weight matrix.
+    
+    \item Each object in the set being queried $\{ \bm{x}_i \}$ is independently transformed into two other vectors, forming two sets of the same cardinality, named the \textbf{key set} $\{ \bm{k}_i \}$ and the \textbf{value set} $\{ \bm{v}_i \}$, respectively. With linear transformations, these are computed as:
+    $$
+    \bm{k}_i = W_k \bm{x}_i, \quad \bm{v}_i = W_v \bm{x}_i
+    $$
+    where $\bm{k}_i$ and $\bm{v}_i$ are the transformed key and value vectors for $\bm{x}_i$ in set $\{ \bm{x}_i \}$, and \( W_k \), \( W_v \) are the learnable weight matrices for the key and value transformations.
+
+    \item Each key vector $\bm{k}_i$ in the key set is scored by similarity to the query vector $\bm{q}$, according to some similarity metric, typically the scaled dot-product similarity:
+    $$
+    \text{score}(\bm{q}, \bm{k}_i) = \frac{\bm{q}^T \bm{k}_i}{\sqrt{d_k}}
+    $$
+    where $d_k$ is the dimensionality of the key vectors, and the similarity score is often scaled by $\sqrt{d_k}$ to prevent large values during training, which could lead to vanishing gradients. 
+
+    \item The \textbf{attention weights} are then computed by applying a \softmax{} to the scores:
+    $$
+    \alpha_i = \frac{\exp(\text{score}(\bm{q}, \bm{k}_i))}{\sum_j \exp(\text{score}(\bm{q}, \bm{k}_j))}
+    $$
+    where $\alpha_i$ represents the normalized attention weight for the \( i \)-th key, and the denominator sums over all key vectors to ensure the attention weights sum to $1$, to form a probability distribution.
+
+    \item Finally, the value vectors are weighted by the normalized attention weight vector, and thus combined to yield the output vector:
+    $$
+    \bm{y} = \sum_i \alpha_i \bm{v}_i
+    $$
+    The output $\bm{y}$ represents a weighted combination of the values $\{\bm{v}_i\}$, where the weights correspond to the degree of ``attention'' the model pays to each key-value pair. Intuitively, this is the ``answer'' to the query of $\bm{x}$ given by the set $\{ \bm{x}_i \}$.
+
+\end{enumerate}
+\end{singlespace}
+\end{coloredroutine}
+
+\begin{figure}[htbp]
+\centering
+\captionsetup{justification = centering}
+\includegraphics[width=0.9\textwidth]{figures/miscellaneous/fig_attention_query.pdf}
+\caption[Querying A Set with an Object]{\textbf{Querying A Set with an Object}: the \textit{object} is first transformed into a \red{query vector}. Then, \darkgreen{attention weights} are computed based on the query's \blue{similarity} to the transformed keys (from the set of objects being queried). Finally, the \orange{transformed values} are fused to form the \purple{output} according to the \darkgreen{attention weights}). Top-$k$ attention (Sec.~\ref{sec:semihard_attention} on Page.~\pageref{sec:semihard_attention}) can be implemented by setting the non-top-$k$ \darkgreen{attention weights} to $0$, or equivalently the non-top-$k$ scores to $-\infty$, due to the choice of \softmax{}.
+}
+% ; In IQN \citep{dabney2018implicit}, the sample points over the CDF parameterized. 
+\label{fig:attention_query}
+\end{figure}
+
+% For an object $\bm{x}$ to \textbf{query} another set of objects $\{ \bm{x}_i \}$, the following steps are taken:
+
+Querying a set with \textit{another set of vectors} is no different from independently applying the described procedure multiple times, for each object in the set. The number of outputs always matches the size of the query set, as each query element $\bm{q}_i$ generates an output vector.
+
+Now let us look into some more advanced use cases of attention:
+
+\subsubsection{Self-Attention}
+
+When a set queries itself, \ie{}, when the one set is queried by a set identical to itself, such procedure is referred to as \textit{self-attention}. In self-attention, the query, key, and value vectors are all derived from the same set of objects, and the model computes attention scores between elements within the same set. This allows each element in the set to attend to every other element, facilitating the extraction of long-range dependencies in sequences. The self-attention mechanism is key to models like the Transformer, where it enables the model to capture complex relationships within an input sequence \citep{vaswani2017attention}.
+
+\subsubsection{Multi-Head Attention}
+
+\textbf{Multi-head attention} involves performing attention computations multiple times independently, each using a distinct set of transformations, such as different learned linear weights. The outputs from each transformation set (or ``head'') are then concatenated and projected back into the desired dimensionality. This approach enables the model to learn attention from multiple subspaces simultaneously, capturing various aspects of the relationships between objects.
+
+In the linear case, multi-head attention can be formulated as:
+$$
+\text{MultiHead}(Q, K, V) = \text{Concat}(\bm{y}_1, \bm{y}_2, \dots) W_O
+$$
+where $Q$, $K$ and $V$ are the concatenated matrix representations of the query set, the key set and the value set, respectively. Each head $\bm{y}_i$ is defined as:
+$$
+\bm{y}_i = \text{Attention}(Q W_Q^i, K W_K^i, V W_V^i)
+$$
+where $W_Q^i$, $W_K^i$ and $W_V^i$ are the learnable linear transformation weights for the query, key, value of head $i$, respectively, with $W_O$ being a final output transformation matrix. This allows the model to aggregate different attention patterns from different subspaces.
+
+Multi-head attention was used in the set-based bottlenecked dynamic models introduced in Chap.~\ref{cha:CP} (Sec.~\ref{sec:CP_bottleneck}, Page.~\pageref{cha:CP}).
+
+\subsubsection{Semi-Hard Attention}
+\label{sec:semihard_attention}
+
+When computing attention weights, it can be beneficial to ignore the unrelated values and focus more strongly on the more matching elements. A modification of attention called \textbf{semi-hard attention} involves keeping only the top-$k$ attention weights, where the output of a vector-set query is only a weighted sum over the top-$k$ most matching values. Note that the output vector will still be a \textit{soft} mixture of the top-$k$ values, while the non-top-$k$ values will be \textit{hard}-discarded \citep{gupta2021memory}. Here, the classical terminology about soft and hard attention weights is used: when the weights are binary values, a selection is essentially conducted, which is recognized as ``hard''; While, if the attention weights are continuous values, the attention is recognized as ``soft''. Top-$k$ attention weights are soft on the top-$k$ indices of the attention weight vector, while being hard $0$s on others, separating the influence of the non top-$k$ ones.
+
+% This approach can improve efficiency and learning by focusing on the most relevant information, particularly in situations with large sets of data where not all elements are equally informative.
+
+Formally, semi-hard weights are obtained by selecting the top-$k$ scores from the full attention weights, setting the remaining weights to zero, and then renormalizing the selected weights:
+\begin{singlespace}
+\begin{equation}
+\alpha'_i = \begin{cases} 
+\frac{\alpha_i}{\sum_{j\in \text{top-$k$}}{\alpha_j}} & \text{if } \alpha_i \text{ is one of the top-k scores}, \\
+0 & \text{otherwise}.
+\end{cases}
+\end{equation}
+\end{singlespace}
+
+The formula above shows that a linear renormalization is conducted such that the selected top-$k$ attention weights sum to $1$. Then, as usual, the renormalized weights are applied to the value vectors. The renormalization can alternatively be implemented more efficiently by setting the non-top-$k$ scores to be $-\infty$ before the \softmax{} operation (Step 3 \& 4 in Routine.~\ref{rtn:objectqueryset} on Page.~\pageref{rtn:objectqueryset}).
+
+When querying a set $\{ \bm{x}_1^K, \dots, \bm{x}_n^K \}$ containing $n > k$ objects with another set $\{ \bm{x}_1^Q, \dots, \bm{x}_k^Q \}$ of exactly $k$ objects, the score matrix will be $k \times n$ (see Step 3 in Routine.~\ref{rtn:objectqueryset} on Page.~\pageref{rtn:objectqueryset}). With ordinary semi-hard top-$k$ attention, this query would result in an output set of $k$ objects, each a transformation of its own top-$k$ most matching object from $\{ \bm{x}_i^K \}$. This means, the output set will be a set with $k$ to $k^2$ objects, where each object is a transformation of $k$ best-matching objects from $\{ \bm{x}_i^K \}$, essentially creating a transformed subset of $\{ \bm{x}_i^K \}$. This is how we used a semi-hard top-$k$ attention as a mechanism to soft-select a subset of objects out of a larger set, with it created the backbone mechanism of spatial abstraction proposed in Chap.~\ref{cha:CP}. In Chap.~\ref{cha:skipper}, spatial abstraction was made more generic to non-object-oriented state representations, \eg{}, to work with feature maps of local patches of observations extracted by Convolutional Neural Networks (CNNs, \citet{lecun1989backpropagation}). % However, if we rank the top-$k$ columns by the \textit{average} score per column, and force all other columns to be $-\infty$, post \softmax{}, all $k$ expected output vectors would have soft attention weights spanning over only $k$ values. 
+
+\subsubsection{Bottom-Up \vs{} Top-Down Attention}
+In both machine learning and human cognitive science, attention mechanisms can be classified into two general types based on the source of the attentional signal, \ie{}, the signal that conditions the attention: \textbf{bottom-up attention} and \textbf{top-down attention}. While both types use learned attention weights to focus on different parts of the input data, the sources of conditioning signals in each approach differ significantly.
+
+\textbf{Bottom-Up} attention is driven by the intrinsic properties of the input data. In this approach, the model attends to salient or noteworthy features in the input data based on its sensory characteristics, without any explicit guidance or prior knowledge. For example, in computer vision, regions of an image that contain high contrast, bright colors, or movement might naturally attract more attention \citep{mnih2014recurrent}. Bottom-Up attention is data-driven and reactive, often used in tasks where the model must extract relevant information from raw data with minimal preconceptions.
+
+\textbf{Top-Down} attention, instead, is guided by higher-level goals, intentions, or prior knowledge. In this approach, the attention mechanism is influenced by the intention of the model, allowing the model to focus on certain aspects of the data that are most relevant to achieving the desired outcome. For example, in a visual question answering (VQA) task, the model may direct its attention toward specific regions of an image that are relevant to answering the given question, based on context and prior knowledge, rather than simply attending to all potentially salient features \citep{antol2015vqa}.
+
+We used top-down attention mechanisms to implement spatial abstractions: 1) in Chap.~\ref{cha:CP} to make the model pay attention to the aspects of the state representations most relevant to the intended actions during planning (Sec.~\ref{sec:CP_bottleneck}, Page.~\pageref{sec:CP_bottleneck}), and 2) in Chap.~\ref{cha:skipper} to make the estimators to focus on parts of the state representations most relevant to transitioning from one state to another target state (Sec.~\ref{sec:skipper_spatial_abstraction}, Page.~\pageref{sec:skipper_spatial_abstraction}).
+
+\section{Model-based RL}
+\label{sec:model_basedL_drl}
+
+Despite significant progress in applying RL to a variety of problems, its real-world application remains hindered by challenges such as poor sample efficiency, unsatisfactory generalization, and other issues \citep{lillicrap2015continuous}. In a standard RL system, the primary focus is on estimating a single quantity: the returns. While value estimation alone can suffice for optimal decision-making \citep{silver2021reward}, relying solely on returns often proves inefficient or even intractable in many real-world scenarios.
+
+\textbf{Model-Based RL} (\textbf{MBRL}) offers an alternative approach by incorporating predictive or generative models, which provide estimations of additional quantities beyond just returns. This inclusion of models opens up new avenues for improving efficiency and performance in RL.
+
+The versatility of MBRL lies in its creative applications of models. For instance, models can be derived from domain expertise, learned in advance, or developed during the RL agent’s training process. Furthermore, models in MBRL can be utilized at different stages of decision-making. \textbf{Decision-time} planning explicitly uses a model to help make decisions at decision-time \citep{alver2022understanding}. For example, \MuZero{} performs a tree search at each timestep, querying a learned model to simulate the most desirable future actions \citep{schrittwieser2019mastering}. In contrast, \textbf{background} planning methods typically function as model-free during decision time, but leverage the model to enhance learning during training. Prominent examples of such methods include \Dyna{} \citep{sutton1991dyna} and \Dreamer{} \citep{hafner2023mastering}, among others.
+
+\subsection{Sources of Models: Where They Come From}
+We begin by discussing the origins of models in MBRL agents, specifically distinguishing between \textbf{acquired models}, which do not require learning, and \textbf{learned models}, which are acquired during RL training.
+
+\subsubsection{Known Perfect Models}
+Computer Go has been successfully conquered by the MBRL agent \AlphaGo{} and its variants \citep{silver2016mastering}. In this case, the model used for decision-time planning is the Go simulator itself, which provides perfectly accurate dynamics. With a perfect model, planning can be highly effective when combined with classical AI search methods, such as those with guaranteed performance \citep{kocsis2006bandit}. However, task-specific models are not always available for all tasks. A more general and practical approach involves learning a model of the environment.
+
+\subsubsection{Models that are Learned}
+Many methods involve learning the models they utilize. Notable examples include the use of learned models in planning algorithms, such as the World Models framework \citep{ha2018world,zhou2024dino} and Model-Based Policy Optimization \citep{levine2016end}. These approaches have shown success in both simulated and real-world environments.
+
+We now briefly review model learning strategies, distinguishing between approaches where the model and the RL agent are trained together as a unified system or separately.
+
+% Also, even with the participation of the $1$-step transition reward signals, whether a representation built by supervised representation learning is good enough for value estimation is still unclear.
+
+\begin{itemize}[leftmargin=*]
+\item
+\textbf{Pre-Trained Models}: Many methods employ separate training stages for the model and the core RL components. For example, consider the unsupervised training methodology.
+
+Approaches like World Models \citep{ha2018world,zhou2024dino} benefit from a separated phase for model learning, known as the \textbf{exploration} or \textbf{pretraining} phase, where the RL agent is not involved. By using a fixed exploration policy, this strategy transforms the non-stationary nature of model learning in an RL setting into a more stable, stationary learning problem, thereby sidestepping certain challenges.
+
+Compared to end-to-end training methods, to be introduced shortly, a key disadvantage is that these approaches allocate a significant portion of the agent-environment interaction budget to a potentially long exploration phase (assuming the ``unsupervised'' training phase is not freely provided). Another issue is that the consequent models are trained only on the trajectories close to the initial states, as uniformly random policies usually do not get the agents far. Thus, these methods may struggle in environments with distinct local features that require the model to continually learn.
+
+\item 
+\textbf{End-to-End Trained Models}: In supervised learning, ``end-to-end'' training refers to optimizing a model directly from inputs to outputs. While in RL, end-to-end indicates that both the model and the RL agent are trained together, where the model can aid in decision-making and value estimation. This means both the model and other system components learn from scratch.
+
+However, end-to-end training does not necessarily imply that the model and RL components are tightly coupled. For example, in \Dyna{}, although the model and value estimator are learned concurrently, their learning processes are largely independent.
+
+End-to-end training is attractive due to its procedural simplicity, especially in deep learning scenarios. However, it is not always suitable for every method. Since end-to-end models are learned from scratch alongside the RL system, the initial stages of RL learning can be difficult without an effective model. The model must rapidly learn to assist the RL system in a meaningful way.
+
+Moreover, training a model end-to-end in RL control tasks is technically challenging, particularly due to non-stationarity. The data distribution evolves as the agent's policy changes. Additionally, when the model is coupled with RL components (\eg{}, sharing the same state representation encoder), training signals often compete with each other. Different optimization objectives may not align, and an inadequately tuned bottleneck for all signals can lead to undesirable parameter landscapes. Although scalar trade-offs and alternative optimization objectives are commonly used to mitigate these issues, they are not always effective.
+\end{itemize}
+
+
+
+\subsection{Timing of Planning: Decision-Time \vs{} Background}
+\label{sec:planning}
+
+Planning is a term referring to the use of more computation to improve predictions and behavior without additional agent-environment interactions, \ie{}, essentially trading computation for sample efficiency \citep{hasselt2019when}.
+
+For clear initiation of the discussions and the coherence with terminologies proposed in \citet{alver2022understanding}, based on the timing of the model usage, we roughly categorize some existing planning methods into two categories: \textbf{decision-time} planning methods and \textbf{background} planning methods. While a decision-time planning agent \textit{utilizes the model to directly enhance its behavior} when interacting with the environment, a background planning agent often seeks to \textit{improve itself with a model when not interacting with the real environment}.
+
+\subsubsection{Decision-Time Planning}
+Decision-time planning is a computational embodiment of proactive decision-making. Intuitively, a decision-time planning agent evaluates potential future outcomes based on its understanding of the effects of actions and current value estimates, then selects the most promising action or sequence of actions to pursue. This knowledge is derived, at least in part, from the model.
+
+A key advantage of decision-time planning is that, with an accurate model, behavior policies can quickly adapt toward optimality. This proactive approach also enhances adaptability in unexpected situations. Notable decision-time planning agents include \MuZero{} \citep{schrittwieser2019mastering} and \PlaNet{} \citep{hafner2019learning}.
+
+Decision-time planning can also be framed as a search problem. We will now explore a representative methodology: Model Predictive Control (MPC).
+
+\subsubsection{Model Predictive Control (MPC) \& Tree Search}
+\label{sec:MPC}
+
+Model Predictive Control (MPC) is a decision-time planning methodology that involves optimizing control inputs over a finite prediction horizon \citep{hansen2023td}. At each time step, MPC solves an optimization problem using a model to predict future states and determine the optimal control sequence. The optimization typically minimizes a cost function that balances objectives like tracking a desired trajectory, minimizing energy consumption, or avoiding constraints. After solving the optimization, only the first action is applied, and the process can be repeated at the next timestep, updating the predictions with new observations. Beyond RL, MPC is also widely used in systems where constraints (\eg{}, physical limits or safety requirements) must be explicitly respected. MPC serves as the foundation of many modern successful applications, \eg{}, Monte-Carlo Tree Search (MCTS) which powers state-of-the-art game RL game-playing agents \citep{schrittwieser2019mastering}.
+
+We can implement MPC with tree-search. The search tree structure is used to represent and evaluate possible future states of the system. Below are key aspects of how MPC utilizes the search tree:
+
+\begin{enumerate}[leftmargin=*]
+    \item \textbf{Nodes in the Search Tree}: In the context of MPC, each node in the search tree represents a possible state at a specific time step. MPC expands the search tree by appending new nodes corresponding to the predicted future states, which are generated by applying potential actions to the current state using the model;
+
+    \item \textbf{Budget-Constrained Search with Priority Queue}: The number of simulations (or steps of search) is typically constrained by a budget, meaning the agent performs a limited number of tree expansions. Once the budget is exhausted, the agent selects the immediate action based on the most promising path found within the search tree. For this, MPC tree search algorithm uses a priority search queue to manage which branches of the search tree are explored first. For example, some MPC's search priorities of the nodes are set according to a best-first search heuristic, which is designed to prioritize nodes that are more likely to lead to a favorable outcome. The priority heuristic in the MPC search process influences the order in which different branches of the search tree are explored, though it does not affect the finalization of the decision regarding the optimal action. The optimal action is always the one that leads to the most promising trajectory, as defined by the optimization objective. Only the first action of the optimal sequence is applied, and the search tree can be reconstructed at the next timestep if necessary, taking into account the new observations.
+
+    \item \textbf{Action Selection and Node Evaluation}: At each planning step, the MPC evaluates the nodes by calculating the expected future return (or other surrogate values) associated with each branch. The optimization process selects the action corresponding to the most promising node;
+\end{enumerate}
+
+We now introduce a simple instance of the tree search algorithm used in Chap.~\ref{cha:CP}, characterized by a priority search queue determined by certain priority heuristic.
+
+\begin{algorithm*}[htbp]
+\caption{Prioritized Tree-Search MPC}
+\label{alg:bfsearch}
+\KwIn{$s_0$ (current state), $\scriptA$ (action set), $\scriptM$ (model), $\scriptQ$ (value estimator), $\gamma$ (discount)}
+\KwOut{$a^*$ (action to be taken)}
+
+$q = \text{queue}()$; $q_T = \text{queue}()$ \textcolor{darkgreen}{//$q_T$ for terminal nodes}\\
+
+$n_u = \text{NODE}(s_0, \text{root}=\text{True})$ \textcolor{darkgreen}{//$n_u$ denotes a node with branches unprocessed nor in $q$}\\
+
+\While{True}{
+    \If{$n_u.\omega$}{
+        $q_T.\text{add}(\langle n_u, n_u.\sigma \rangle)$ \textcolor{darkgreen}{//identified as a terminal state. $n_u$ is added to $q_T$ using bisection, together with the discounted sum of the simulated rewards along the way $n_u.\sigma$}
+    }
+    \Else{
+        \lFor{$a \in \scriptA$}{
+            $q.\text{add}(\langle n_u, a, n_u.\sigma +  \gamma ^{n_u.\text{depth}} \cdot Q(n_u.s,a) \rangle)$ \textcolor{darkgreen}{//bisect \wrt{} priority}
+        }
+    }
+    \If{$\text{isempty}(q)$}{\textbf{break} \textcolor{darkgreen}{//tree depleted}}
+    $n_c,a_c,v_e=q.\text{pop}()$ \textcolor{darkgreen}{//get branch with highest priority; for in-distribution setting, priority is the estimated value of the leaf trajectory}\\
+    \If{budget depleted}{\textbf{break} \textcolor{darkgreen}{//termination criterion met}}
+    $\hat{s}, \hat{r}, \hat{\omega} = \scriptM(n_c.s, a_c)$ \textcolor{darkgreen}{//simulate the chosen branch}\\
+    $n_u = \text{NODE}(\hat{s}, \text{parent}=n_c)$\\
+    \If{$n_c.\text{depth}>0$}{$n_u.a_b=n_c.a_b$}
+    \Else{$n_u.a_b=a_c$ \textcolor{darkgreen}{//descendants trace root action}}
+    $n_u.\omega=\hat{\omega}$; $n_u.\sigma=n_c.\sigma + \gamma^{n_c.\text{depth}} \cdot \hat{t}$
+}
+
+$n_c,a_c,v_e=q.\text{pop}(\text{`highest value'})$ \textcolor{darkgreen}{//get branch with highest \textbf{value} within the expandables}\\
+
+% \llIf{$\neg\text{isempty}(q_T) \wedge (q_T[-1].\text{value} \geq v_e \vee \text{isempty}(q))$}{$n^* = q_T[-1]$} % \textcolor{darkgreen}{//best trajectory leads to a leaf node}
+% \lElse{$n^* = n_c$}
+
+$n^* = n_c$;\\
+
+\If{$\neg\text{isempty}(q_T)$}{
+
+$n_T = q_T.\text{pop}(\text{`highest value'})$ \textcolor{darkgreen}{//get node with highest \textbf{value} within simulated terminal states}\\
+
+\If{$n_T.\text{value} \geq v_e \vee \text{isempty}(q)$}{$n^* = n_T$}
+} % \textcolor{darkgreen}{//best trajectory leads to a leaf node}
+
+\If{$\text{isroot}(n^*)$}{$a^*=a_c$}
+\Else{$a^*=n^*.a_b$}
+\end{algorithm*}
+
+For more intuitive understanding, we provide in Fig.~\ref{fig:bfsearch} an example showing how the algorithm works with a best-first heuristic with $\gamma=1$ and $|\scriptA{}| = 3$ and maximum planning steps of $3$.
+
+\begin{figure*}[htbp]
+\centering
+\captionsetup{justification = centering}
+\includegraphics[width=0.90\textwidth]{figures/CP/fig_bfsearch.pdf}
+
+\caption[Best-First Tree Search for MPC]{\textbf{Example of the Best-First Heuristic-based Tree Search (for MPC)}: Step 0 / 3) Start of planning, with the root node and three branches. The branch $\langle s_0, a_0 \rangle$ is chosen due to the best-first heuristic. If we employ the random search heuristic, like what we do in OOD evaluation in Sec.~\ref{sec:CP_experiments} (Page.~\pageref{cha:CP}), a random branch would be chosen; Step 1 / 3) We expand the chosen branch, popped out of the priority queue. A new node is constructed, together with its out-reaching branches, which are added to the queue. Now the queue has $5$ branches in it. The heuristic marks $\langle s_0, a_2 \rangle$ to be the next simulated branch; Step 2 / 3) Simulation of $\langle s_0, a_2 \rangle$ is finished and $\langle s_2, a_0 \rangle$ is marked; Step 3 / 3) Node S3 is imagined via $\langle s_2, a_0 \rangle$ but it is estimated to be a terminal state. Now, the tree search budget is depleted. We locate the root node branch $\langle s_0, a_2 \rangle$ which leads to the trajectory with the most promising return $0.4$.}
+\label{fig:bfsearch}
+\end{figure*}
+
+In the case of Fig.~\ref{fig:bfsearch}, which depicts the tree-search algorithm used in decision-time planning in Chap.~\ref{cha:CP}, the agent can choose to (re-)plan at every timestep using the learned model to maximize adaptability and to correct deviations in the outdated planning results.
+
+Equivalence could be drawn from this planning approach to Monte-Carlo Tree Search (MCTS) \citep{silver2016mastering,silver2017mastering}. While this method is more simplistic and assumes deterministic models to operate with.
+
+% \subsection{Monte-Carlo Tree Search}
+% In this subsection, I introduce Monte-Carlo Tree Search (MCTS) \citep{kocsis2006bandit,gelly2011tree}, the backbone of many successful decision-time planning approaches. It has demonstrated its potential in deterministic games with large branching factors.
+
+% We focus on an instance of MCTS, MCTS with an Upper Confidence Bounds (UCB) based tree policy for deterministic MDPs, originally proposed in \citet{kocsis2006bandit} for better anytime behavior, \ie{}, small error probability if the search is stopped prematurely as well as convergence if given enough budget.
+% The \textit{tree} in MCTS is a structured abstraction of trajectories simulated into the future: the nodes correspond to the states and the directed edges correspond to the transitions caused by taking actions. Each MCTS simulation traverses the tree with a UCB-based tree policy until a leaf node is reached. The core problem of the tree search is the optimization of exploration-exploitation tradeoff \citep{kocsis2006bandit}. UCB is a strategy originally proposed to address such difficulty for bandit problems and now extended to the tree via the efforts in \citet{gelly2011tree}. For a given state node, the UCB-based MCTS tree-policy takes the following form:
+
+% \begin{singlespace}
+% \begin{equation}
+%   \pi_{\text{UCB}}(a^{k}|s) =
+%     \begin{cases}
+%       1 & \text{if } a^{k} = \argmax_{a}{Q(s,a) + C(s, a)}\\
+%       0 & \text{otherwise}
+%     \end{cases}       
+% \end{equation}
+% \end{singlespace}
+
+% where $a^{k}$ is an action from the state node $s$, $\pi_{\text{UCB}}$ is the UCB-based policy augmented upon the agent's target policy $\pi$ and $C(s, a)$ is a function defined over the visitation counts of the state node $s$ and the state-action pair $\langle s, a \rangle$. $C(s, a)$ is an additional term added upon the estimated state-action value $Q(s,a)$ (an expectation) which reflects the confidence of the estimated $Q(s,a)$ via sampling. The less the state-action pair is visited, the larger the term addition would be to encourage exploration (for competing in the argmax). The more the state-action pair is visited, the smaller the term addition would be to facilitate exploitation on the best action. The terms added to each state-action pair would converge to $0$ after frequent visitations. $C(s, a)$, originally proposed out of a Hoeffding bound, should be carefully picked to guarantee a bounded regret, however we do not introduce the detailed usage in MCTS for its out-of-scope complexity. 
+
+% Then, the leaf (state node with no children attached) is then evaluated using a rollout policy (a policy for estimating the value of the leaf node with Monte-Carlo estimation) or a value estimator trained by RL \citep{gelly2011tree,guez2018learning}. This value is then propagated during a back-up phase that updates statistics of the tree along the traversed path, tracking the visitation of the states and the state-action pairs as well as the mean evaluation values (thus updating the tree-policy for ancestor nodes). Search proceeds in an ``anytime'' fashion: the statistics gradually become more accurate, and simulations focus on increasingly promising regions of the tree. This sampling-based lookahead search converges asymptotically to the optimal policy in single agent domains and to the minimax value function in zero-sum games \citep{kocsis2006bandit}. The process is illustrated in Fig.~\ref{fig:MCTS}. For the detailed algorithm implementation, please check Algorithm 1 of \citep{guez2018learning}.
+
+% \begin{figure}[htbp]
+% \centering
+% \captionsetup{justification = centering}
+% \includegraphics[width=0.6\textwidth]{fig_MCTS.png}
+% \caption{An illustrative example of the basic 4-Step MCTS algorithm: [Selection \& Expansion] Every iteration of MCTS starts at the root node. A tree policy based on UCB-based principles is used until a state-action pair (blue arrow in the 2nd tree starting from the blue-circled state in the 1st tree) leading to a new node added to the tree (blue circle in the 2nd tree). We could see that, in theory, the selection and expansion supports stochastic dynamics as well. However, in practice, especially with learned representations, hashing states may be painfully complicated; [Simulation] The value of the added node is estimated with either the prediction of a value estimator or the Monte-Carlo return of a rollout policy. Either a state-value or a state-action value is evaluated: in the figure, a state-action value is estimated with the rollout policy's Monte-Carlo return; [Backup] The evaluated value is then backed-up to update the precedent nodes according to some rules. Picture credit \url{http://incompleteideas.net/book/the-book-2nd.html}. The detailed update rules are refined by applications and for specific scenarios. More details of a modern implementation of MCTS used in \MuZero{} can be found in \citet{schrittwieser2019mastering}.}
+% \label{fig:MCTS}
+% \end{figure}
+
+\subsubsection{Background Planning}
+\label{sec:background_planning}
+
+Background Planning often involves more reactive model usages and does not directly optimize for the action to take at decision-time. We present one representative framework - \Dyna{}, to showcase the potentials of this approach\footnote{In some sense, classical methodologies such as \Dyna{}mic Programming (DP) can also arguably fit in the category of background planning, as they seek to estimate the value function and optimal policy \citep{howard1960dynamic}} \citep{sutton1991dyna}.
+
+% \subsubsection{\Dyna{}mic Programming}
+% \Dyna{}mic Programming (DP) is a framework that serves the foundation of modern MBRL approaches. Coming from the theories of MDPs \citep{bellman1957markovian}, a most direct way of implementing a model-based approach is to try to capture the MDP and solve it. With the captured MDP accurate enough, the agent could use effective DP algorithms, \eg{}, value iteration and policy iteration \citep{howard1960dynamic}, to improve the value estimation and the policy. Different from the sampling-based policy evaluation approaches such as Temporal-Difference (TD) learning, DP approaches directly solve the value function with the known state and action spaces, transition probabilities, reward functions. We briefly introduce two representative algorithms: \textit{policy iteration} and \textit{value iteration}.
+
+% \textbf{Policy Iteration (PI)}: PI consists of two alternating steps, \textit{policy improvement} and \textit{policy evaluation}. Policy improvement is conducted such that the expected return (value function) of each state solved by policy evaluation would improve or at least stay the same. Depending on the function family that the policy constrain itself in, the policy may or may not evolve to an optimal policy. The detailed methods of policy evaluation can vary, but they are expected with convergence guarantees \citep{howard1960dynamic}.
+
+
+% \textbf{Value Iteration (VI)}: VI first constrains the policy to be greedy \wrt{} the solved values. In this way, an optimal policy is guaranteed to be reached. Then, VI combines the two steps into one compact operation, essentially applying the Bellman optimality operator \citep{bellman1957markovian}. Without requiring to explicitly keep track of a separate policy table, VI converges to the optimal value and hence optimal policies could be extracted.
+
+\Dyna{} was first introduced in \citet{sutton1991dyna} as an early RL planning framework designed to reinforce an agent's policy in a simulated environment, while it interacts with the real world\footnote{Though it may seem counterintuitive to describe \Dyna{}'s behavior as planning, the authors argued that conducting RL in a simulated environment enhances the agent's behavior and can therefore be interpreted as a form of planning.}.
+
+\Dyna{} trains its model based on the experiences from agent-environment interactions, enabling the model to generate simulated transitions. It then uses these simulated transitions to augment the training data for the value estimator. Importantly, there is no fundamental change to the learning process of the value estimator; the only difference is that the training data is enriched with simulations from the model. For more discussions regarding \Dyna{}, please check Sec.~\ref{sec:exprepgen} (Page.~\pageref{sec:exprepgen}).
+
+Background planning frameworks like \Dyna{} offer sample efficiency benefits and are computationally less demanding during agent-environment interactions, as their additional computations occur offline. However, they cannot provide immediate behavior adaptations in the states the agent encounters. Furthermore, \Dyna{} typically only learns to generate transitions from states visited in the past. As a result, \Dyna{} is focused on the data distribution during training time, which can limit its ability to generalize OOD. % In contrast, simulation-based model-predictive control (MPC) and its variants \citep{rao2009survey,richards2005robust,hamrick2020role} only update the value estimator based on real data, using the model simply to perform lookahead at decision-time. Hence, model inaccuracies impact less, with more favorable OOD generalization capabilities. Hence, MPC is adopted in our approach.
+
+There are some notable works that followed the idea of \Dyna{}, \eg{}, \citet{hafner2020mastering,kaiser2019model}.
+
+\subsection{Usage of Models: What They Estimate \& How They Help}
+As discussed, the versatility of MBRL methods makes them promising for improving RL performance across various dimensions. A model does not have to estimate the transition functions defined in an MDP; instead, it can capture other interesting and potentially partial aspects of the environment. Below, we explore several representative use cases of models:
+
+\subsubsection{Search for Best Actions with Dynamics Predictors}
+\label{sec:dynamics_predictors}
+
+The most straightforward use of a model is to estimate the transition dynamics of the environment, \ie{}, to predict how the environment changes given the actions that the agent may take.
+
+In tabular settings (finite state and action spaces), learning transition dynamics is relatively simple. However, in non-tabular tasks, dynamics predictors may have to reconstruct future observations or given state representations, which can be noisy or contain irrelevant details. Despite progress, such as in \citet{kaiser2019model}, observation-level reconstruction often suffers from inefficiencies that complicate decision-making. Moreover, model architecture may have to be highly task-specific to handle these detailed reconstructions. For instance, object-oriented dynamics models work well for grid-like environments, while models suited for differential equations are better for continuous control tasks.
+
+An alternative to detailed reconstruction is to build models in learned state representation spaces, where meaningful features are extracted and irrelevant details to decision-making are neglected. However, state representation learning introduces potential degeneracy: state transitions may be accurate yet meaningless without proper training signals. To address this, methods like \citet{kaiser2019model} use reconstruction to seek establishing bijections between observations and states, aiming for lossless compression of observations. However, these methods, to a degree, still share the challenges of observation-level reconstruction \citep{silver2016predictron, schrittwieser2019mastering}. To mitigate these issues, additional signals, such as value estimation, are needed to constrain state representations and ensure they are meaningful for prediction.
+
+The Predictron \citep{silver2016predictron} is a model-based approach that learns state representations specialized for accurate value estimation and a model that operates within. By matching the Monte Carlo returns from the real environment, the model ensures consistency between generated and real environment returns. This approach enhances TD-based value estimation and has been extended to \MuZero{} \citep{schrittwieser2019mastering}, which uses decision-time planning with MCTS. \MuZero{} achieves state-of-the-art performance in board games and Atari by employing Predictron-based models for planning. However, training solely with task-specific reward signals can lead to overfitting and overreliance on memorization, limiting generalization across tasks. We will discuss this more in Chap.~\ref{cha:CP}.
+
+These dynamics predictors can be used effectively in tree-search algorithms during decision-time planning. A model that can estimate state transitions can also serve as environment simulators for background planning, which is to be introduced later separately.
+
+Dynamics predictors can also be used to predict the outcomes of macro-action, giving rise to ideas such as \textbf{option models}. However, these models are often haunted by the uncertainty accumulated over the time horizon of the macro actions and can be highly unreliable, if sources of stochasticity are involved.
+
+\subsubsection{Propose Beneficial Goals with Temporarily-Abstract Target Generators}
+Models can also be used to directly generate goals that the agent may seek to achieve. This requires that the model are modelled in a temporally-abstract way, since the possible states / observations at the very next timestep typically do not serve as meaningful goals. For instance, \LEAP{} used variational autoencoders (VAEs) to generate observations that may be used as waypoints to guide the overall navigation; While, in Chap.~\ref{cha:skipper}, \Skipper{} used conditional VAE (CVAEs) to generate possible states given the environmental contexts, enabling the OOD generation of targets that help decompose the overall tasks into smaller and more manageable steps.
+
+\subsubsection{Learn for Free with Experience Generators \& Experience Replays}
+\label{sec:exprepgen}
+\Dyna{} and recent methods like \citet{ha2018world, kaiser2019model} use models to generate simulated transitions, building on generative modeling approaches. Recent work focuses on stochastic experience generation to improve MBRL in stochastic environments \citep{kaiser2019model,du2019energy}.
+
+Experience Replay, popularized by \DQN{}, stores transitions or trajectories experienced by the agent \citep{lin1992self,mnih2015human}. During background planning, the agent samples from the replay buffer to improve sample efficiency by reusing experiences, trading off large storage space requirements \citep{sutton1991dyna}.
+
+Although \DQN{} popularized experience replay, it is not always considered an MBRL method. In DQN, experience replay is used in a model-free, off-policy Q-learning fashion (See Sec.~\ref{sec:q_learning}, Page.~\pageref{sec:q_learning} for more details). \citet{hasselt2019when} unifies \DQN{} with \Dyna{}, where experience replay serves as a model that "generates" on-policy transitions. This makes \DQN{} a special case of \Dyna{}, with a model trained by storing transitions.
+
+From this unification, an experience generator can be seen as a learnable version of experience replay \citep{seijen2015replay,hasselt2019when}. Parametric experience generators, trained to reduce storage requirements, can generate samples that may improve generalization if the model parameterization supports it. However, in deep learning, these generators often struggle to produce high-quality samples due to model inaccuracies. As \citet{hasselt2019when} notes, inaccurate transitions can introduce uncommon or impossible states, damaging the value estimator by promoting undesirable generalization. Observation-level generators are especially prone to this issue \citep{silver2016predictron,schrittwieser2019mastering}. In contrast, experience replay avoids these risks but is limited to samples from seen trajectories.
+
+
+% \Dyna{}, as well as recent methods such as \citet{ha2018world,kaiser2019model}, use the model to generate simulated transitions, and are built upon generative modelling approaches. Recent research is motivated towards stochastic experience generation for more compatibility of MBRL to stochastic environments \citep{kaiser2019model,du2019energy}. 
+
+% As we have previously introduced with DQN, an Experience Replay is a buffer to store transitions or trajectories experienced by the agent \citep{lin1992self,mnih2015human}. During background planning, the agent would sample from the replay in a particular way to suit its needs. Buffering the previous experience instead of discarding them enables the  reuse of experience and brings immediate advantage of better sample efficiency, by trading potentially very large storage space \citep{sutton1991dyna}.
+
+% The usage of experience replay has been greatly popularized by DQN \citep{mnih2015human}, though it is not a dominant view point that experience replays should be seen as an MBRL approach. In DQN, the samples from experience replay are used in a model-free off-policy Q-learning fashion. \citet{hasselt2019when} unifies the DQN method with the \Dyna{} framework, as it could be seen as a \Dyna{} instance employing a special kind of model which is ``trained'' by storing transitions. Experience replay as the Dyna model also is very constrained, in the sense that the model can only strict ``generate'' on-policy transitions.
+
+% This role of experience replay can categorize DQN as an instance of \Dyna{}, with a special kind of model which is ``trained'' by storing transitions \citep{hasselt2019when}.
+
+% From this unifying view, we could understand why experience generator can also be seen as a learnable version of experience replay \citep{seijen2015replay,hasselt2019when}. Parametric experience generators are trained and hence likely to have the advantage of less storage requirements and potentially generating samples that would help the value estimator generalize better if the parameterization provides generalization capabilities. However, though these generators have good performance in the tabular case, in the deep learning setting, they often cause problems, generating low-quality samples, due to inaccuracy of model learning and demonstrated degeneracies often outweighs its potential advantages over experience replay. \citet{hasselt2019when} discusses possible divergence of the value estimator when using inaccurately generated experience: inaccurate transitions could lead to states that are uncommon or impossible under the sampling distribution, which then hurt the value estimator by unwanted generalization. It is worth noting that observation-level generators suffer more from this problem \citep{silver2016predictron,schrittwieser2019mastering}. Using experience replay is free from these risks. However, experience replay cannot provide samples beyond the seen trajectories.
+
+
+
+% These methods often seeks to regress a latent variable conditioned prediction towards an observed target. Recent advances on self-supervised learning introduces another field of possibilities of using energy-based models to enable stochastic predictors \citep{du2019energy}. For more details on potential advantages of energy-based models for RL, please check the discussions in Sec.~\ref{sec:energy}.
+
+
+\subsubsection{Enhance State Representations with Extra Predictions}
+It has been shown that incorporating additional predictive models that can back-propagate into the state encoder can improve the quality of state representations. These extra predictions may be used during decision-time planning, or they may never be called upon. In the latter case, the predictive models exist solely to shape the state representation through training, effectively acting as an implicit regularization signal.
+
+In the former case, the agent proposed in Chap.~\ref{cha:CP} enhances its object-oriented state representation encoder with predictive losses, including state dynamics, reward and termination predictions, as well as value estimation, with all predicted quantities being explicitly utilized during decision-time planning. In contrast, for the latter case, \UNREAL{} uses reward and termination signal predictions to prevent the state representation from overfitting to value estimation, making it more aware of the environment's dynamics \citep{jaderberg2016unreal}.
+
+\subsubsection{Optimize Policy Directly with Differentiable Models}
+Differentiable models can play an important role in enabling the direct optimization of policies by providing a smooth, learnable approximation of the environment's dynamics. These models allow for the end-to-end optimization of both the policy and the model in a unified framework. By using differentiable dynamics models, gradient-based optimization techniques can be used to directly update the policy based on planning predictions. Differentiable models enable the use of techniques such as MPC within a differentiable framework, allowing for direct gradient updates to both the model and the policy, improving overall performance \citep{heess2015learning}. 
+
+% Even for a single task, different state representations could be learned for various purposes, \ie{}, reconstructing the observations, value estimation \etc{}. In the following parts, I would expand more on how the existing literature develops on this open topic.
+
+\subsection{Inspiring Developments in Model-Based RL}
+\label{sec:newideas}
+
+We turn to more recent literature and survey the interesting progress for MBRL research related to this thesis, focusing on perspective methods seeking to address the innate difficulties of existing approaches from different perspectives.
+
+\subsubsection{Partial Planning}
+\label{sec:partial_planning}
+
+If the state space or feature space is large, then the expected next state or distribution over it can be difficult for models to estimate, as has been repeatedly shown \citep{alver2024partial}.
+
+In MBRL, \textbf{partial models} refer to models that predict partial aspects of the environment rather than capturing the full dynamics, which may be more complex or less relevant to the agent's decision-making process. For instance, partial models may predict only the immediate rewards associated with state-action pairs, or generate high-level abstractions such as goals or waypoints, as seen in frameworks like \LEAP{} and \Skipper{}. By simplifying the environment representation, partial models can help reduce the complexity of learning and planning, focusing the agent’s attention on the most important aspects of the environment for its current objective. This approach can improve computational efficiency and allow for better generalization \citep{bengio2017consciousness}.
+
+% These partial models can focus on specific features or components of the environment, such as the rewards or specific environmental dynamics, that are particularly relevant for the agent's task.
+
+Partial models resemble the idea of spatial abstraction we mentioned in Chap.~\ref{cha:CP} and Chap.~\ref{cha:skipper}. 
+
+Similarly, partial models can also reflect abstraction in the temporal dimension \citep{alver2024partial}. For example, the model in \citet{talvitie2008local} makes certain predictions based on certain few points in history (past observations) when triggered at a certain decision point (timestep). This idea predates the sequence modeling methods based on modern deep learning, which take advantage of the recent advances of deep learning to facilitate attention to history back-in-time.
+
+% A lower model complexity for a bundle of local models than a complete model, \ie{}, a model that takes care of all predictions for all decision points, were proved for the uncontrolled dynamics case. The usage potential of such method on a complete RL setting is unknown yet would be interesting to explore.
+
+% Some models only predict a partial change in the state representation. We introduce one in Chap.~\ref{cha:CP}.
+
+% In \Skipper{}, we introduce partial models (estimators), that learns only to predict for example the number of timesteps it is expected to take from one state to another.
+
+\subsubsection{Planning with Temporal Abstraction}
+When planning a long trajectory, searching at minuscule timescales is computationally demanding and in nature difficult, due to the exponentially growing search outcomes and imperfectness of the learned model.
+
+An \textit{option model} seeks to capture the dynamics given by a set of options inside an MDP. As pointed out in \citet{sutton1999between}, planning with an option-model is preferred by its sample efficiency and the less exposure to the error accumulation problem of atomic timestep planning using an imperfect model. Though option models in real practice face the challenges brought by the discovery of options, the changing of option, \etc{}, I have proposed a solution as the \Skipper{} framework in Chap. \ref{cha:skipper}.
+
+\subsubsection{Directions of Planning}
+Our previous discussions on model behaviors focused on the forward simulation from certain states, whether from present, to the relative future. Somewhat counter-intuitively, \citet{hasselt2019when} investigates benefits of using a \textit{backward model}, \ie{}, a \Dyna{} transition generator which simulates a transition from the current state and the last action to the last state. When the backward model is still learning much, \ie{}, model is still inaccurate, temporal credit assignment, \eg{}, temporal-difference updates, will be conducted on fictional starting state with the target constructed from a true state, therefore lowering the chance of catastrophic delusional updates \citep{hasselt2019when}. When the model is accurate enough, this would perform in the same way as we would expect from a good forward \Dyna{} \citep{hasselt2019when}. The concept of delusions in RL is heavily discussed in Chap.~\ref{cha:delusions}.
+
+\section{Other Related Background Knowledge}
+
+\subsection{Consciousness in the First Sense \& Conscious Planning}
+In this thesis, my collaborators and I frequently draw inspiration from human conscious planning when designing agent behaviors targeting the challenges of generalization. Note that this thesis does not claim to understand the exact mechanisms behind consciousness in the human brain. Instead, the methods presented in this thesis aim to endow agents with capabilities akin to conscious planning. In other words, we seek to design agents that behave similarly to conscious planning agents, leveraging consciousness-driven behaviors such as Out-Of-Distribution (OOD) generalization \citep{bengio2017consciousness}.
+
+In \citet{dehane2017consciousness}, the authors outline conscious behaviors along two orthogonal axes. The first axis, corresponding to consciousness in the first sense, often abbreviated as C1, describes how information processing is selectively focused. When humans reason for decision-making, their attention is directed to the most relevant aspects of space and time, facilitating efficient generalization. This form of consciousness is often modeled by the global workspace hypothesis \citep{baars1997theater}. The second axis, representing consciousness in the second sense, pertains to an agent's awareness of its own internal state \citep{vangulick2004consciousness}. While this axis is intriguing and often receives significant attention, it is essential not to overlook the more fundamental axis of conscious behaviors (the first sense).
+
+The top-down attention-based spatial abstraction mechanism proposed in Chap.~\ref{cha:CP} and used in Chap.~\ref{cha:skipper} draws heavy inspirations from consciousness in the first sense.
+
+More discussions regarding consciousness and its impact on decision-making can be found in Sec.~\ref{sec:CP_intro} on Page.~\pageref{sec:CP_intro}.
+
+\subsection{Generalization-Focused Environments \& Experimental Settings}
+In existing works, the failure modes of RL agents are often overlooked, possibly due to a lack of access to environmental ground truth in benchmark environments. To address this, my collaborators and I developed several sets of environments aimed at evaluating the generalization capabilities of RL agents, specifically in the face of distributional shifts, compositional challenges, and OOD systematic generalization scenarios \citep{quinonero2022dataset}.
+
+\subsubsection{Generalization-Focused Environments}
+
+The two most representative sets of these environments are \RDSfull{} and \SSMfull{}, or simply \RDS{} and \SSM{}, which are the primary focus of later introductions. These environments were designed with the goal of testing how agents adapt to the challenges of generalization. Unlike traditional environments, however, \RDS{} and \SSM{} are environment factories that can generate specific instances of tasks based on our design specifications.
+
+Both \RDS{} and \SSM{} are built upon the {\fontfamily{qcr}\selectfont DistShift}\footnote{\url{https://minigrid.farama.org/environments/minigrid/DistShiftEnv/}} environment from the MiniGrid repository \citep{chevalierboisvert2018minigrid,chevalierboisvert2023minigrid}, which itself is based on the work by \citet{leike2017ai}.
+
+A significant advantage of using gridworlds as the foundation for these environments is that all instances are solvable by dynamic programming (DP), due to the simplicity of enumerating state-action pairs and constructing a transition table.
+
+It is important to note that the challenges presented by these tasks are more complex than they may initially appear. For instance, the random placement of episode-terminating lava traps introduces compositionality challenges, while the abundance of terminal states complicates path planning. Certain locations in some environment instances become inaccessible to the agent, leading to problematic targets, as discussed in Chap.~\ref{cha:delusions}.
+
+We deliberately made both \RDS{} and \SSM{} fully observable by modifying the original agent-centric views (which render the observation) to a top-down bird's-eye view of the entire gridworld. These fully observable tasks prioritize reasoning over causal mechanisms rather than learning representations from complicated observations.
+
+\subsubsection{\RDS{}}
+\label{sec:RDS}
+
+\RDS{} is a navigation task where the agent must navigate to the goal without stepping into the episode-terminating lava grids. A terminal sparse reward of $+1$ is given when the agent successfully gets to the goal grid.
+
+In each \RDS{} instance, the agent and the goal spawn at opposite edges of the field. Between these edges, lava is randomly placed according to a difficulty parameter, $\delta$, which ensures that a viable path to the goal exists. The agent must navigate through this lava field to reach the goal and receive the terminal reward. When we constrain that the agent only spawns at the left or the right edge of the grid world, the corresponding \RDS{} instances are out of the distribution of those instances generated by constraining the spawning at the top or bottom edges. We illustrate these in Fig.~\ref{fig:render_RDS}.
+
+The evaluative task instances propose a systematic generalization challenge to the agents \citep{frank2009connectionist}. Systematic generalization refers to the ability of a cognitive system (a human brain or a computational agent) to apply learned knowledge or rules to new, previously unseen situations in a consistent and structured manner.
+
+\begin{figure}[htbp]
+\centering
+\subfloat[left-right, $\delta = 0.25$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.24\textwidth]{figures/miscellaneous/fig_render_RDS_0.25.png}}
+\hfill
+\subfloat[left-right, $\delta = 0.35$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.24\textwidth]{figures/miscellaneous/fig_render_RDS_0.35.png}}
+\hfill
+\subfloat[left-right, $\delta = 0.45$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.24\textwidth]{figures/miscellaneous/fig_render_RDS_0.45.png}}
+\hfill
+\subfloat[left-right, $\delta = 0.55$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.24\textwidth]{figures/miscellaneous/fig_render_RDS_0.55.png}}
+
+\subfloat[top-bottom, $\delta = 0.25$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.24\textwidth]{figures/miscellaneous/fig_render_RDS_0.25_transposed.png}}
+\hfill
+\subfloat[top-bottom, $\delta = 0.35$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.24\textwidth]{figures/miscellaneous/fig_render_RDS_0.35_transposed.png}}
+\hfill
+\subfloat[top-bottom, $\delta = 0.45$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.24\textwidth]{figures/miscellaneous/fig_render_RDS_0.45_transposed.png}}
+\hfill
+\subfloat[top-bottom, $\delta = 0.55$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.24\textwidth]{figures/miscellaneous/fig_render_RDS_0.55_transposed.png}}
+
+\caption[Rendering \RDS{} Instances]{\textbf{Left-Right \& Top-Down \RDS{} Instances}: We render observations of \RDS{} instances of different orientation (left-right or top-down) and different difficulties $\delta \in \{ 0.25, 0.35, 0.45, 0.55 \}$. The agent location and facing direction are rendered with a red triangle. The lava grids are rendered with orange boxes with waves. The goal locations are rendered as green squares. In Chap.~\ref{cha:CP}, the agents are trained on left-right instances and evaluated on only top-down instances, which are outside the training distributions. Such experimental setting is how we evaluated the zero-shot OOD generalization abilities of the agent in Chap.~\ref{cha:CP}.
+}
+\label{fig:render_RDS}
+\end{figure}
+
+One key feature of \RDS{} instances is that all non-terminal states form a connected component. This means that, starting from any non-terminal state, the agent can always reach another non-terminal state within a limited number of steps.
+
+Each \RDS{} instance can be paired with three different action spaces, each defining a distinct transition kernel:
+
+\begin{itemize}[leftmargin=*]
+\item \textbf{``Turn-or-Forward'' dynamics}: Depending on the agent's facing direction, it can either turn clockwise, turn counterclockwise, or move forward to the grid in front.
+
+\item \textbf{``Absolute-Direction'' dynamics}: The agent chooses to move to one of the four adjacent grids based on absolute directions, regardless of its facing direction.
+
+\item \textbf{``Turn-and-Forward'' dynamics}: The agent chooses to turn clockwise, counterclockwise, or $180^\circ$ and move forward, or simply step forward without turning.
+\end{itemize}
+
+While \RDS{} instances are generally deterministic, randomness is occasionally introduced to test the agent's ability to handle stochasticity.
+
+\SSM{} was built on top of the features of \RDS{}.
+
+\subsubsection{\SSM{}}
+
+In \SSM{}, the agent moves one step at a time in four absolute directions to navigate the field, implementing only the ``Absolute Direction'' dynamics. The agent must collect both a sword and a shield, which are randomly placed, before reaching the ``monster'' guarding the treasure. If the agent reaches the monster prematurely, the episode ends without reward. The paths to the sword, shield, and monster are guaranteed to exist in all environmental instances. The sword and shield are collected by moving to their respective grid cells, and once acquired, they cannot be dropped.
+
+This design introduces temporary unreachability in the state structure, as non-terminal states are not fully traversable from one to another. Semantically, this segments the states of \SSM{} into four situations, \ie{}, equivalence classes, determined by two binary indicators: the agent's possession of the sword and shield. For example, $\langle 0, 1 \rangle$ denotes that the sword has not been acquired, but the shield has been acquired.
+
+Visualizations of \SSM{} instances are in Fig.~\ref{fig:render_SSM}. The state structure and the situations in \SSM{} are visualized in Fig.~\ref{fig:SSM_states}. \SSM{} was designed with the expectation to handle future work directions regarding abstract planning, as explained in Sec.~\ref{sec:future_work} on Page.~\pageref{sec:future_work}.
+
+\begin{figure}[htbp]
+\centering
+\subfloat[$\delta = 0.25$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.24\textwidth]{figures/miscellaneous/fig_render_SSM_0.25.png}}
+\hfill
+\subfloat[$\delta = 0.35$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.24\textwidth]{figures/miscellaneous/fig_render_SSM_0.35.png}}
+\hfill
+\subfloat[$\delta = 0.45$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.24\textwidth]{figures/miscellaneous/fig_render_SSM_0.45.png}}
+\hfill
+\subfloat[$\delta = 0.55$]{
+\captionsetup{justification = centering}
+\includegraphics[height=0.24\textwidth]{figures/miscellaneous/fig_render_SSM_0.55.png}}
+
+\caption[Rendering \SSM{} Instances]{\textbf{\SSM{} Instances}: We render observations of \SSM{} instances of difficulties $\delta \in \{ 0.25, 0.35, 0.45, 0.55 \}$. The renderings of the agent location and the lava grids are the same as in \RDS{}. While, the locations of the newly introduced sword and shield are rendered as a purple rapier shape and a blue heater shield shape, respectively. The monster location is marked with green-black loops. \SSM{} was introduced in Chap.~\ref{cha:delusions} (Page.~\pageref{cha:delusions}) to expose target-assisted planning agents' failure modes regarding problematic targets. In Sec.~\ref{sec:delusions_exp} (Page.~\pageref{sec:delusions_exp}), the agents are trained only on instances with $\delta = 0.4$ and then evaluated on a range of OOD difficulties $\delta \in \{ 0.25, 0.35, 0.45, 0.55 \}$. Such experimental setting is how we evaluated the zero-shot OOD generalization abilities of the agent in both Chap.~\ref{cha:skipper} \& Chap.~\ref{cha:delusions}. In Chap.~\ref{cha:skipper}, only \RDS{} is used. While in Chap.~\ref{cha:delusions}, both \RDS{} and \SSM{} are used.
+}
+\label{fig:render_SSM}
+\end{figure}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.75\textwidth]{figures/miscellaneous/fig_SSM_states.pdf}
+\caption[\SSM{} State Structure]{\textbf{Visualization of \SSM{} State Structure}: we analyze an instance of $4\times4$ \SSM{} task instance with difficulty $\delta=0$, \ie{}, no lava traps generated, approximately $4$ times as large as a corresponding \RDS{} instance. It can be seen that intra-situation transitions are only facilitated with pivotal transitions that involve the acquisition of the sword or the shield. The only possible situation transitions are $\langle 0, 0 \rangle$ to $\langle 0, 1 \rangle$, $\langle 0, 0 \rangle$ to $\langle 1, 0 \rangle$, $\langle 1, 0 \rangle$ to $\langle 1, 1 \rangle$, and $\langle 0, 1 \rangle$ to $\langle 1, 1 \rangle$. To effectively solve an unseen \SSM{} instance, an agent needs to understand the environment, make plans based on its location and the world layout, deciding if it is the sword or the shield it should be getting first, before success.}
+\label{fig:SSM_states}
+\end{figure}
+
+\subsubsection{Generalization-Focused Experimental Settings}
+\label{sec:OOD_settings}
+
+We designed our customized MiniGrid-based environments with the intention to use them in a generalization-focused experimental setting. In this setting, agents are trained in a gridworld with one or a limited number of layouts and then tested on unseen layouts. This setup, referred to as {\fontfamily{qcr}\selectfont DistShift}, is designed to evaluate how well agents generalize to different tasks \citep{mendonca2020meta}. This setting not only reflects how RL may be applied in real-world scenarios, but also tests the agents' abilities to generalize via \textit{understanding} instead of \textit{memorization}. I provide a brief summary of the experimental settings used in the main thesis chapters in Tab.~\ref{tab:exp_settings}.
+
+
+\begin{table}[ht]
+\centering
+\begin{tabular}{|c|p{0.15\textwidth}|p{0.1\textwidth}|p{0.25\textwidth}|p{0.25\textwidth}|}
+\hline
+\textbf{Setting} & \textbf{\RDS{}} & \textbf{\SSM{}} & \textbf{Training} & \textbf{Evaluation} \\ \hline
+Chap.~\ref{cha:CP}   & Used \newline (sizes from $6 \times 6$ to $10 \times 10$, $3$ action spaces \& variants) & Not used & Train with $\infty$ environment instances with $\delta = 0.35$ ($2.5\times 10^{6}$ interactions) & Evaluate with \textit{transposed} instances with $\delta$ from \newline $\{ 0.25, 0.35, 0.45, 0.55 \}$ \\ \hline
+Chap.~\ref{cha:skipper}              & Used \newline (size $12 \times 12$) & Not used & Train with $\{1, 5, 25, 50, 100, \infty \}$ environment instances with $\delta = 0.4$, random initialization ($1.5\times 10^{6}$ interactions) & Evaluate with $\delta$ from \newline $\{ 0.25, 0.35, 0.45, 0.55 \}$ \\ \hline
+Chap.~\ref{cha:delusions}           & Used \newline (size $12 \times 12$) & \textit{Used} (sizes $8 \times 8$ \& $12 \times 12$) & Train with 50 environment instances with $\delta=0.4$, random initialization ($1.5\times 10^{6}$ interactions) & Evaluate with $\delta$ from \newline $\{ 0.25, 0.35, 0.45, 0.55 \}$ \\ \hline
+\end{tabular}
+\caption[OOD-Focused Experiment Settings for Different Chapters]{\textbf{OOD-Focused Experiment Settings for Different Chapters}:
+The experimental settings have evolved throughout the course of my PhD, I will introduce them in more detail in later chapters where they are used. In Chap.~\ref{cha:CP}, we explored the most diverse set of experiments, ranging from transposed instances to varying world sizes. In Chap.~\ref{cha:skipper}, we adjusted the training difficulty to $\delta = 0.4$ to be OOD from all evaluation, and removed the transposed instances to better capture the generalization gap and align with the notion of distribution shifts \citep{soulos2024compositional}. We accelerated training by granting the agents a uniformly random initialization (in terms of their initial locations in the gridworlds). Furthermore, we limited the action space to the ``absolute-direction'' dynamics. We also mostly limited the number of training environments to reflect limited training scenarios in the real world. We tested \Skipper{}'s performance scalability in terms of the number of training environments. In Chap.~\ref{cha:delusions}, we converged at an OOD-focused setting, where the generalization gap can be intuitively visualized, while introducing the new \SSM{} environments.}
+\label{tab:exp_settings}
+\end{table}
+
+
+It is similar to the ``train-on-few then test-on-unseen'' approach used in the non-curriculum experiments in ProcGen \citep{cobbe2019procgen}, which focuses on the challenges of learning representations from image-based observations. However, unlike ProcGen, \RDS{} and \SSM{} utilize simple observations to minimize the challenges of representation learning, instead focusing on the inherent difficulty of the tasks themselves. This deliberate design choice isolates the complexities of decision-making and generalization, which are the central focus of this thesis, from the challenges posed by representation learning.
+
+\phantomsection
+\label{sec:transient_continual}
+
+Note that, despite the focus on generalization, our experimental setting is considered a \textbf{transient} learning setting with its limitations, instead of a \textit{continual} learning setting that would be necessary to achieve more general intelligence. 
+
+
+
+
+\textbf{\textit{We are now finished with the introduction of the basic (previous chapter) and the more advanced knowledge (this chapter) required to understand the contributions of this thesis. The following three chapters will each feature a major effort of my PhD. Together, they satisfy the overall research expectation of my PhD research proposal.}}

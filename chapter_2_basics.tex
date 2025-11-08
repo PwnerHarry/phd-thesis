@@ -1,0 +1,1125 @@
+\chapter{Literature Review: Reinforcement Learning}
+\label{cha:basics}
+\textit{\small This chapter presents basic background knowledge about  Reinforcement Learning}
+
+\minitoc
+
+\section{What is Reinforcement Learning?}
+Reinforcement Learning (RL) is a methodology aimed at addressing decision-making problems through learning from interactions with the environment, without explicit supervision. RL draws significant inspiration from the neural basis of learning and operant conditioning in neuroscience \citep{sutton2018reinforcement}.
+
+\subsection{Learning by Trial-and-Error}
+
+A distinctive feature of RL is that agents learn through trial-and-error. In essence, RL methods autonomously discover both the nature of the situation and the appropriate actions to take post-deployment, highlighting the reduced need for domain-specific knowledge.
+
+The methodology of RL is both powerful and versatile, as trial-and-error learning can be applied to virtually any decision-making problem. It is worth noting that the study of RL extends beyond merely refining learning algorithms: the learning process can also be impeded by challenges associated with environment setup, data collection, and other preparatory activities.
+
+RL is predominantly applied on the reward maximization scenarios in sequential decision-making \citep{sutton2018reinforcement}.
+
+\subsection{Reward Maximization in Sequential Decision-Making}
+
+Sequential Decision-Making is a concept which involves making a series of decisions and actions over time to optimize objective functions, such as maximizing cumulative rewards, or somewhat equivalently, minimizing costs. Each decision influences subsequent choices and system outcomes, taking into account the current status of the system, available actions, and the probabilistic nature of action-induced transitions \citep{puterman2014markov}.
+
+In a sequential decision-making problem, we name the decision-maker an \textit{agent}, and everything else the \textit{environment}. An agent can be an algorithm or a method, while the environment represent the ``world'' that the agent is in.
+
+This thesis is particularly interested in the case of Sequential Decision-Making with the objective of maximizing cumulative scalar rewards, which is the case that RL seeks to tackle. A \textit{reward} signal defines the objective of a sequential decision-making problem and is received after taking each action. The reward signal thus defines what are the good and bad events for the agent. Reward signals can also explicitly correspond to a given ``goal'', \eg{}, a sparse terminal reward if some goal is achieved.
+
+The generality of RL's maximization approach is backed by the so-called reward hypothesis, which posits that, ``all of what we mean by goals and purposes can be well thought of as maximization of the expected value of the cumulative sum of a received scalar signal (reward)''. The readers of this thesis can use this hypothesis to specify the implicit requirements on goals and purposes under which the hypothesis holds \citep{bowling2023settling}.
+
+Particularly, we focus on \textit{discrete-time} scenarios where the timings of decision and corresponding environment change are placed over discrete time intervals named \textbf{timesteps} defined between \textbf{decision points}. These can be formulated as follows: let the decision points (in the flow of time) be $t_0, t_1, \cdots$. At a decision point $t$, the agent receives an \textit{observation} $x_t \in \scriptX$ and chooses an action $a_t \in \scriptA$, where $\scriptX$ is the \textit{observation space}, the collection of possible observations for the agent that is often assumed to be arbitrarily large, and $\scriptA$ is the collection of all possible actions that the agent could take, named the \textit{action space}. Possibly represented in a variety of ways, an observation is what an environment allows the agent to observe during the agent-environment interactions, and can often conceal important information regarding the environmental state. An action is a choice among all the possible ways that the environment allows an agent to interact with itself. Let $t'$ be the next decision point after $t$. For the period from $t$ to $t'$, the agent receives feedback $r_{t \to t'}$, namely \textit{reward}, which depends on the agent's action. The objective of an agent in this scenario is to maximize the cumulative \textbf{return} received over its lifetime, expressed as a sum of rewards, until the agent can no longer interact with the environment.
+
+In addition to the sequential decision-making framework above, RL relies on the notion of \textbf{environment state}, or \textbf{states} for short, to ground itself in the mathematical framework of Markov Decision Processes (MDPs), to be introduced later. In the aforementioned definitions, observations are the system outcomes of the actions that are exposed to the agent, while some changes to the environment that remain hidden to the agent could still influence the future outcomes and decisions. A state is a notion unifying both the exposed parts and the hidden \citep{amortila2024reinforcement}, an identifier of the current situation of the environment, which can be hidden from the agent (and can be exposed fully as well) and may require the agent to infer through its own perceptions. The \textbf{environment state} refers to the complete representation of the current state of the environment in which the agent operates. This state includes all relevant information about the environment that can affect the agent's decision-making and future interactions. Conversely, an agent needs to infer the \textbf{agent state} from its interaction history with the environment. These agent states refer to the internal representations or understandings that the agent has of its current situation based on its observations and prior knowledge, and thus may not necessarily match the complete environment state.
+
+\phantomsection
+\label{sec:state_representations}
+
+When we talk about ``state representations'' in the later parts, we are either referring to the observations that are lossless transformations of the real environment states (emitted by the environment) or to the agent states constructed by the agents themselves. We overload the term ``state'' for convenience, and should be able to easily differentiate based on the context.
+
+With the notion of states, in the RL setting, the \textit{environment} becomes an ensemble of a reward function (a scalar feedback for the decisions), state dynamics (transition probabilities of states by actions) and optionally a termination signal (a binary feedback for ending the episode). The environment emits observations to the agent, and the agent needs to predict the current environmental state from the interaction history, which can be used as the basis for decision-making, compared to considering all interaction history.
+
+\begin{figure}
+\centering
+\includegraphics[width=0.6\textwidth]{figures/miscellaneous/fig_agent_environment_interaction.pdf}
+\caption[Agent-Environment Interaction in RL]{\textbf{Agent-Environment Interaction in an RL Problem (from an agent-centric view)}: $\omega_{t+1}$ is the binary termination signal indicating if $s_{t+1}$ is terminal, \ie{}, if the current episode ends and the agent can take no more actions. The environment can hide the states from the agent, only exposing the observations. The environment dynamics is only decided by the environment state $s_t$ and the action $a_t$.}
+\label{fig:agent_environment_interaction}
+\end{figure}
+
+\subsection{Markov Decision Processes}
+\label{sec:MDP}
+% In the same environment, different tasks (and corresponding reward signals) can be selected.
+
+Markov Decision Processes (MDPs), an abstraction of the sequential-decision making problems, are classically used as a mathematical formalization to ground RL in mathematical analyses, a connection introduced and popularized by \citet{watkins1989learning}. MDPs can be seen as an environment-centric view of RL problems, contrary to that presented in Fig.~\ref{fig:agent_environment_interaction}.
+
+% The learner and decision maker is called the \textit{agent}. The thing it interacts with, comprising everything outside the agent, is called the \textit{environment}. They interact continually, the agent selecting actions and the environment responding to these actions and presenting new situations to the agent. The environment also gives \textit{rewards}, special numerical values, which the agent seeks to maximize over time through its choice of actions.
+
+Coinciding with RL, MDPs are developed through the viewpoints of state transitions, as the states are used to specify the starts and the ends of all transitions. Observations are often ignored in this environment-centric view of the RL problem. In an MDP, an agent is in a state and only one state at any time.
+
+States convey some sense of ``how the environment is'' at a particular time and act as sufficient statistics to make optimal decisions, \st{} the previous interaction histories with the environment needs not be considered for decision-making, giving rise to MDP's Markovian properties. In other words, a state is a compact lossless compression of the agent-environment interaction history. With the help of the notion of states, we establish the framework of MDPs.
+
+Formally, an MDP is a five-tuple $\langle \scriptS, \scriptA, p, R, p_0 \rangle$, defining the properties of the world and the objective within it. The state space $\scriptS$ defines the set of all possible states. Each decision that the agent can make is known as an action $a \in \scriptA$, where the action space $\scriptA$ defines the set of all actions. The function $p: \scriptS \times \scriptR \times \scriptS \times \scriptA \to [0,1]$ defines the \textit{dynamics} of the MDP, and is often recognized as the \textit{transition probability function} or simply \textit{transition function}. In the MDP, the rewards are specified with a function $R$, a marginalized descriptor based on $p$, established over a transition. The states that the agent start from in a finite MDP can be described using a probability distribution $p_0(s) \coloneqq \doubleP\{S_0 = s\}$ for each $s \in \scriptS$, named the \textbf{initial state distribution}. % , which we discuss in detail in Sec.~\ref{sec:state_dist}.
+
+% \begin{coloreddefinition}{Initial State Distribution}{initstatedist}
+% For a finite Markov decision process, the distribution $p_0: \scriptS \to [0, 1]$ of the first state $S_0$, from which the agent-environment interactions start, is called the \textit{starting state distribution} or \textit{initial state distribution}.
+% \end{coloreddefinition}
+
+% For an RL agent, the distribution $p_0$ is part of the unknown environment and can be only learned through interactions.
+
+In a (discrete-time) MDP, at each timestep $t\in\{ 0, 1, 2, \dots \}$, the agent resides in a state $S_t \in \scriptS{}$ and on that basis selects an action, $A_t \in \scriptA{}$. One timestep later at $t+1$, in part as a consequence of its action, the agent receives a numerical reward, $R_{t+1} \in \scriptR{} \subset \doubleR{}$ and finds itself in a new state $S_{t+1}$. Thus, $p$ explains the joint probabilities of transitions organized in the form $\langle s_t, a_t, r_{t+1}, s_{t+1}\rangle$, where $s_t$, $a_t$ correspond to the state and the action the agent took at time $t$, while $s_{t+1}$ correspond to the state the agent transitioned to following $\langle s_t, a_t \rangle$, and finally $r_{t+1}$ corresponds to the reward for such transition.
+
+Technically, in a finite MDP, where the state set $\scriptS$, the action set $\scriptA$ and the reward set $\scriptR$ are all finite, the random variables $R_t$ and $S_t$ have well-defined discrete probability distributions that only depend on the preceding state and action. That is, for particular values of these random variables, $s' \in \scriptS$ and $r \in \scriptR$, there is a probability of those values occurring at timestep $t$, given particular preceding state and action:
+$$p(s',r|s,a) \coloneqq \doubleP\{ S_{t+1} = s', R_{t+1} = r | S_{t} = s, A_{t} = a \}, \forall s, s' \in \scriptS, \forall r \in \scriptR, \forall a \in \scriptA$$
+
+An episode of agent-environment interactions begins with an initial state $s_0$ sampled from an initial state distribution $p_0(s) \coloneqq \doubleP\{S_0 = s\}$ over each state $s$. The following sequence defines the process of an MDP (without termination signals):
+\begin{enumerate}[leftmargin=*]
+    \item The agent starts from an initial state $s_0$, whose distribution can be described with $p_0$;
+    \item The agent selects an action (according to its policy);
+    \item A new state and reward are sampled according to the Markovian dynamics function $p$;
+    \item The process is repeated from Step 2 if the agent is not in a terminal state.
+\end{enumerate}
+
+The MDP formulation describes what happens during agent-environment interactions with all perfect access to all the environmental dynamics. Note that in an MDP formulation, the termination signal is absorbed into the agent's knowledge about the states.
+
+The MDP and the actions (taken by an agent) together thereby give rise to a \textit{trajectory} like:
+
+$$S_t,A_t,R_{t+1},S_{t+1},A_{t+1},R_{t+2},\dots$$
+
+An \textbf{episode} is used to describe a full trajectory from the initial state $S_0$ until termination in $S_T$.
+
+Note that we have used the uppercase letters to denote the random variables since we have not yet observed the states, the rewards or the actions. Yet, if we have already, we would use lowercase to denote their specific instantiation. For example, at timestep $t$, the agent took action $a_t$ based on state $s_t$ and transitioned to the state $s_{t+1}$ while receiving the reward $r_{t+1}$.
+
+\subsubsection{Markov Property}
+In an MDP, the probabilities given by $p$ \textit{completely} characterize the environment's dynamics. That is, the probability of each possible value for $S_{t+1}$ and $R_{t+1}$ depends only on the immediately preceding state and action $S_{t}$ and $A_{t}$, not on earlier states and actions. This is best viewed a restriction not on the decision process but on the state, which means the state must include information about all aspects of the past agent-environment interaction that make a difference for the future.
+
+The $4$-argument transition function is a most general form of a transition function defined in an MDP. There are also alternative forms of the transition function, which rely on either additional assumptions of the environment or exist as marginalized expectations.
+
+Marginalizing over rewards yields the $3$-argument state-transition probability function:
+$$p(s'|s,a) \coloneqq \doubleP\{ S_t = s' | S_{t-1} = s, A_{t-1} = a \} = \sum_{r \in \scriptR{}}{p(s',r|s,a)}$$
+where $p$ is overloaded. However, if we assume that the state transition and the reward are jointly determined, \ie{}, a fixed transition from one state to another always generates the same reward, then the $4$-argument transition function collapse into the $3$-argument version $p: \scriptS \times \scriptS \times \scriptA \to \times [0,1]$.
+
+Many other useful expected statistics can be derived from the general $4$-argument $p$ by marginalizing. These include:
+
+Expected rewards for state-action pairs as a $2$-argument function $r: \scriptS \times \scriptA \to \doubleR$:
+$$r(s,a) \coloneqq \doubleE[ R_t | S_{t-1} = s, A_{t-1} = a ] = \sum_{r \in \scriptR{}}{r \sum_{s' \in \scriptS{}}{ p(s',r|s,a) }} $$
+Since the only way that the agent could interact with the environment is through the action, there is no way for the agent to optimize the transition and reward by any other means, this $2$-argument expected reward function should be an appropriate choice when the agent tries to model the reward function for decisioning, through agent-environment interactions.
+
+Expected rewards for state-action-next-state triples as a $3$-argument function $r: \scriptS \times \scriptA \times \scriptS \to \doubleR$:
+
+$$r(s,a,s') \coloneqq \doubleE[ R_t | S_{t-1} = s, A_{t-1} = a, S_{t} = s' ] = \sum_{r \in \scriptR{}}{r \frac{p(s',r|s,a)}{p(s'|s,a)}} $$
+
+where $p(s'|s,a)$ is the $3$-argument transition function we derived earlier. This function can be estimated to predict the reward incurred by some certain transition, which is often used in model-based RL.
+
+For many environments, the reward function is a signal consistent with the encouragement of reaching a certain goal, that is, a certain subset of $\scriptS$. Under these circumstances, we could also use goals to represent rewards. However, it is worth noting that not all wanted behaviors can be incentivized by Markovian rewards in the context of MDPs \citep{abel2021expressivity}.
+
+\subsubsection{Limitations to MDP Formulation}
+
+\textbf{Implicit Pause-able Environment Assumption}: MDP assumes that the environment only changes after the agent takes an action, whereas this assumption seems inappropriate in many other sequential decision-making problems, \eg{} when the agent is planning with a complex model \citep{ramstedt2019real}.
+
+\textbf{Stationarity}: MDPs assume a stationary environment, where the transition and reward functions do not change over time. In dynamic environments, the models may need to adapt, which can complicate learning and decision-making.
+
+\textbf{Discrepancy between State and Observations}: the MDP formulation can be used to analyze the behaviors of agents, but often cannot be used to direct RL agents' learning behaviors when the environment is not fully observable, \ie{}, when the observations do not contain full information of the corresponding state, or when it is difficult for information related to making better decisions to be extracted from observations. A way to address such discrepancy is to use the Partially-Observable MDP (POMDP) formulation, whose discussions I will skip because of the low relevance to this thesis.
+
+% \textbf{Assumption of Full Knowledge}: Many MDP algorithms assume full knowledge of the transition dynamics and reward structure, which is often unrealistic in real-world scenarios where these must be learned from data.
+
+\subsection{RL Objectives in MDPs (Episodic Setting)}
+
+In MDPs, actions influence more than just the immediate rewards, essentially feedback from the environment, but also subsequent situations, or states, and through the future rewards. Thus, MDPs involve delayed reward and the need to tradeoff immediate and delayed reward.
+
+By connecting RL with an MDP, we can formulate the objectives that RL agents seek to optimize. Note that in this thesis, we only discuss cases where trajectories have finite lengths, often recognized as the \textbf{episodic} setting. The end of trajectory is triggered when an agent transitions into a terminal state. After reaching a terminal state, the agent is taken out of the MDP.
+
+\subsubsection{Undiscounted Episodic Return}
+
+In the form most aligned with sequential decision-making, RL seeks to maximize the expected return $G_t$, which, in the simplest case, is defined as the sum of the rewards:
+
+\begin{equation}
+\label{eq:undiscounted_return}
+G_t \equiv R_{t+1} + R_{t+2} + \cdots + R_{T}
+\end{equation}
+
+where $T$ is a final timestep. The notion of \textit{episodes} is naturally formed as the interaction sequence from the starting timestep $0$ until the terminal time $T$, which is a random variable that normally varies and independent with each other, \ie{}, one episode does not affect the environment dynamics of the next.
+
+In episodic tasks, it is sometimes necessary to distinguish the (sub-)set of all non-terminal states, denoted $\scriptS$ from the set of all states plus the terminal states $\scriptS^{+}$. In the literature, sometimes ``trajectory'' is used loosely to denote a segment of an episode. For instance, in some control tasks, a Maximum Episode Length (MEL) would be set to make sure that the agent does not get stuck for an unacceptable amount of time in uninteresting regions of the state space \citep{erraqabi2022temporal}. These trajectories are segments of full episodes, since they are not terminated by transitioning into a terminal state.
+
+\subsubsection{Discounted Episodic Return}
+
+In the episodic setting, which is of interest of this thesis, RL agents would often employ an alternative objective additionally defined by a notion of discounting. This means, instead of RL agents trying to maximize the simple sum of episodic rewards, some try to maximize a ``discounted'' version of the original objective. Such discounting is often introduced to improve the convergence of policy evaluation methods, to be introduced later.
+
+According to the discounting approach, the agent tries to select actions so that the sum of the discounted rewards it receives over the future is maximized. In particular, it chooses to maximize the \textit{expected discounted return}:
+
+\begin{equation}
+\label{eq:discounted_return}
+G_t \equiv R_{t+1} + \gamma R_{t+2} + \gamma^2 R_{t+3} + \cdots = \sum_{k=0}^{\infty}{\gamma^{k}R_{t+k+1}}
+\end{equation}
+
+where $\gamma \in [0, 1]$ is the \textit{discount parameter}, also recognized as the \textit{discount rate}. Note that here the discount parameter is constant throughout the states and the episodes, but it can be a state or observation-based function as well \citep{zhao2020meta}.
+
+Let us see an example of how discounting could influence the behavior of a return-maximizing agent. Imagine a navigation task, where an agent receives a terminal reward of $+1$ upon success. By maximizing the original undiscounted objective, the agent would have no incentive to reach the goal more quickly, as it just needs to reach the goal in the end to get the same amount of reward. While, for an agent with the discounted objective, every timestep wasted is a penalty towards the objective, thus it would be incentivized to reach the goal quickly.
+
+The fact that the discount parameters can be set to $1$ gives a unified formulation for the discounted episodic tasks as well as the undiscounted. Ideally, the discount factors should come from the task itself, as its value reflects the objective of the task. However, for complicated tasks with Deep Reinforcement Learning (DRL), which is essentially using artificial neural networks for RL, it is generally observed that lowering the discount factor yields significantly more stable performance rather than using $\gamma = 1$, even if the objective includes no discounting \citep{mnih2015human}. These blur the line how we should see the discount factor, which classically should be seen as some kind of built-in characteristics of the environment yet now a parameter that could be set or learned for some purposes.
+
+Discounting schemes, other than a constant $\gamma$-controlled exponential weighting presented above, are also investigated in the literature \citep{schultheis2022reinforcement}, \eg{} state-based discounting \citep{white2016greedy,zhao2020meta}.
+
+In this thesis, we focus on the discounted episodic setting.
+
+\subsection{Policies \& Value Functions}
+\label{sec:policies_values}
+
+A \textit{policy} is a component used by an agent to decide what to do. In an MDP, a policy is a function which takes in the (environmental) state the agent is in as input and outputs decisions about actions. Formally,
+
+\begin{coloreddefinition}{policy}{policy}
+In an MDP, a policy $\pi$ is a mapping from states to probabilities of selecting each possible action, \ie{}, $\pi: \scriptS{} \times \scriptA{} \to [0, 1]$.
+\end{coloreddefinition}
+
+In an MDP, if the agent is following policy $\pi$ at timestep $t$, then $\pi(a|s)$ is the probability that $A_t = a$ if $S_t = s$. If all probability mass is concentrated at a single action, then we call the policy \textbf{deterministic}, otherwise \textbf{stochastic}, in the sense that an action would be sampled according to the probabilities. Note that it is also common to define state-based action sets, however we will stick loyal to the simple setting of \citet{sutton2018reinforcement} for this thesis, \ie{}, assume that all actions are available at all times. The policies in RL are essentially stationary decision rules defined for more general Markov chains \citep{puterman2014markov}, where ``stationary'' means that the decision rules are consistent for every possible states, as in we are only interested in the stationary MDPs in this thesis.
+
+The \textit{value function} of a state $s$ under a policy $\pi$, denoted $v_{\pi}(s)$, is the expected (discounted) return if an agent starts in $s$ and following $\pi$ thereafter. For historical reasons, we often call it ``V-value'' to contrast with ``Q-value'' given by the state-action value function. Formally,
+
+\begin{coloreddefinition}{state-value function (V-values)}{vfunction}
+In an MDP, the \textit{state-value function} for policy $\pi$ or simply \textit{value function} $v_\pi(s)$, given discount function $\gamma(s)$ and policy $\pi(s)$, is defined as
+$$v_{\pi}(s) \coloneqq \doubleE_{\pi}[ G_t | S_t = s ] = \doubleE_{\pi} \left[ {\sum_{k=0}^{\infty}{\gamma^k \cdot  R_{t+k+1}}} \mid {S_t = s} \right]$$
+
+where $\doubleE_{\pi}$ denotes the expected value of the random variable given that the agent follows policy $\pi$ and the values of the terminal states are defined as $0$.
+\end{coloreddefinition}
+
+We are also interested in the state-action value function, which is more useful for control cases, \eg{} when searching for better policies with a value estimator.
+
+\begin{coloreddefinition}{state-action-value function (Q-values)}{qfunction}
+In an MDP, the \textit{state-action-value for policy $\pi$} $q_\pi(s)$, given discount function $\gamma$ and policy $\pi(s)$, is defined as the expected return starting from $s$, taking the action $a$ and thereafter following $\pi$:
+$$q_{\pi}(s, a) \coloneqq \doubleE_{\pi}[ G_t | S_t = s, A_t = a ] = \doubleE_{\pi} \left[ {\sum_{k=0}^{\infty}{\gamma^k \cdot  R_{t+k+1}}} \mid {S_t = s, A_t = a} \right]$$
+\end{coloreddefinition}
+
+One of the key subroutines of RL is to estimate $v_\pi$ or $q_\pi$ from experience, as $\hat{v}_\pi$ or $\hat{q}_\pi$. This estimation can also sometimes be recognized as \textit{policy evaluation} or \textit{prediction}. This concept is to be introduced in detail in Sec.~\ref{sec:PEPI}.
+
+With the recursive definition in Def.~\ref{def:vfunction}, we can obtain the following equation for the state-value function $v_\pi$, given a policy $\pi$:
+
+\begin{equation}
+\label{eq:bellman_v_general}
+\begin{aligned}
+v_{\pi}(s) &  \coloneqq \doubleE_{\pi}[ G_t | S_t = s ] = \doubleE_{\pi}[ R_{t+1} + \gamma G_{t+1}]\\
+& = \sum_{a}{\pi(a|s) \sum_{s',r}{p(s',r|s,a)\left[ r + \gamma \cdot \doubleE_{\pi}[G_{t+1}|S_{t+1}=s'] \right]}}\\
+& = \sum_{a}{\pi(a|s) \sum_{s',r}{p(s',r|s,a)\left[ r + \gamma \cdot v_{\pi}(s')\right]}}
+\end{aligned}
+\end{equation}
+
+The equation is essentially one basic form of the \textit{Bellman equation} for $v_{\pi}$. Serving as a core equation of RL, it expresses the relationship between the value of one state and its successor states. With this equation and access to environment dynamics (defined as an MDP), the method of dynamic programming can be used to exactly compute the value function $v_{\pi}$ or $q_{\pi}$ given any valid policy $\pi$, to be introduced later.
+
+\subsection{Optimal Policies \& Optimal Value Functions}
+
+To find the optimal policy, we must define what it means for one policy to be better than another. This is done via the value functions, which define a partial ordering over policies in an MDP.
+
+\begin{coloreddefinition}{Partial Order of Policies}{partialorderpolicy}
+In an MDP with certain discount $\gamma$, a policy $\pi$ is defined to be \textit{better than or equal to} a policy $\pi'$ if its expected return is greater than or equal to that of $\pi'$ for all states, \ie{}, $\pi \geq \pi'$ \textit{\textbf{iff}} $\forall s \in \scriptS{}, v_{\pi}(s) \geq v_{\pi'}(s)$.
+\end{coloreddefinition}
+
+There always exists at least one policy that is better than or equal to all other policies, which is identified as the \textbf{optimal policy} $\pi_{*}$. Intuitively, the optimal policy is the policy with the largest value. However, less intuitively,
+
+\begin{coloredfact}{Existence of Optimal Deterministic Markovian Policies}{optdeterpols}
+Given a finite MDP, there always exists a deterministic Markovian policy $\pi_{*}$ that achieves the optimal values.
+\end{coloredfact}
+
+Together with the policy improvement theorem \citep{bellman1957dynamic}, to be discussed later, the fact serves as the reason why we could confidently focus on the space of deterministic Markovian policies, since an optimization trajectory towards an optimal policy always exist inside. This also justifies some RL methods without explicit policies (as a separate component), \eg{} value-based methods that use $\epsilon$-greedy upon deterministic Q-value estimates as policies, such as Q-learning (Sec.~\ref{sec:q_learning}, Page.~\pageref{sec:q_learning}) \citep{sutton2018reinforcement}. Also, despite that there can be more than one optimal policies, we denote all of them by $\pi_{*}$ for simplicity. In accordance with Def.~\ref{def:partialorderpolicy}, all optimal policies must share the same state-value function, called the \textit{optimal state-value function} $v_{*}$, which is defined as:
+
+\begin{coloreddefinition}{optimal state-value (V-value) function}{optVvalue}
+The optimal state-value function is shared by all optimal policies $\pi_{*}$ and defined as:
+
+$$v_{*}(s) \equiv \max_{\pi}{v_{\pi} (s)}, \forall s \in \scriptS{}$$
+
+where the $\max$ operator is defined upon the policy partial orders.
+\end{coloreddefinition}
+
+Optimal policies also share the same optimal action-value function $q_{*}$, which is defined as
+
+\begin{coloreddefinition}{optimal state-action-value (Q-value) function}{optQvalue}
+The optimal state-action-value function is shared by all optimal policies $\pi_{*}$ and defined as:
+
+$$q_{*}(s,a) \equiv \max_{\pi}{q_{\pi} (s, a)}, \forall s \in \scriptS{}, \forall a \in \scriptA{}$$
+
+where the $\max$ operator is defined upon the policy partial orders.
+\end{coloreddefinition}
+
+$q_{*}$ gives the expected return for taking action $a$ in state $s$ and thereafter following an optimal policy. Naturally, we can establish the following connections between Def.~\ref{def:optVvalue} and Def.~\ref{def:optQvalue}:
+
+$$q_{*}(s,a) = \doubleE \left[ R_{t+1} + \gamma v_{*}(S_{t+1}) | S_t = s, A_t = a \right]$$
+
+There are also \textit{Bellman optimality equations}, which are specialized for optimal policies\footnote{Historically, Bellman optimality equation is often abbreviated as ``Bellman Equation''. While we explicitly differentiate it with the Bellman (policy evaluation) equation in Eq.~\ref{eq:bellman_v_general}}.
+
+The methods for finding better policies, are recognized as \textit{policy improvement} methods. The Bellman optimality equation conducts policy evaluation and policy improvement at the same time. Later, such equation would be used to support value iteration, a classic dynamic programming method for computing the optimal policy, to be discussed in Sec.~\ref{sec:VI} on Page.~\pageref{sec:VI}.
+
+\section{Policy Evaluation \& Policy Improvement}
+\label{sec:PEPI}
+Central to the search for better policies are two important synergetic mechanisms: \textbf{policy evaluation} and \textbf{policy improvement}, which refers to understanding how it is doing and improving behaviors to do better, respectively. These are central to both dynamic programming and (approximate) RL methods, to be introduced later.
+
+\textbf{Policy Evaluation} enables the understanding of how good a policy is, and hence to help find better policies \citep{sutton2018reinforcement}. Policy evaluations produce either an estimate of state value function (``V'') or an estimate of state-action value function (``Q''). Representative methods of policy evaluation include Monte Carlo estimation or (approximate) dynamic programming (temporal-difference methods), to be introduced later.
+
+\textbf{Policy Improvement} is the process of enhancing a policy based on its evaluation, with the aim of maximizing the expected return or cumulative rewards. This step typically follows policy evaluation and is essential for iterative approaches like policy iteration. 
+
+Policy evaluation points the direction of policy improvement, \ie{}, improving values equals to improving policies. This is supported by the policy improvement theorem \citep{bellman1957dynamic}, which states that from any given policy, a superior policy can be obtained by choosing actions with a higher state value for any state applicable. For instance, if conveniently we have for a state $s$ that $Q(s,a^{'})$ is larger than the current policy's action $a$'s $Q(s,a)$, then the policy can be improved by learning to choose $a^{'}$ at $s$ instead of $a$.
+
+\phantomsection
+\label{sec:actor_critic}
+
+If a policy is parameterized, \ie{}, not a deterministic function over the value estimates (\eg{}, greedy policy based on the value estimates) and the policy can be itself improved by certain optimization methods, the resulting RL agent architecture is commonly named \textbf{actor-critic}, with the \textbf{actor} being the policy and the \textbf{critic} being the value estimator. When an agent with an actor-critic architecture employs a parameterized policy optimized by gradient-based optimization methods, \textbf{policy gradients} methods are often used,  where the actor is the policy improved via estimated gradients established over the estimates from the critic \citep{konda1999actor,sutton2018reinforcement}. Evidently, the idea behind actor-critic\footnote{I will not introduce policy gradient methods in this chapter because of its low relevance to this thesis.} is essentially alternating policy evaluation and policy improvement, which is recognized as \textbf{policy iteration}. Policy iteration is a powerful and universal idea towards addressing reward maximization.
+
+It is also worth pointing out that the statements about policy iteration above \textit{did not necessarily} assume that policy evaluation algorithms run until convergence and converges to the correct values. This is because if the policy evaluation algorithm is guaranteed to converge, then policy improvement attempts based on the prematurely terminated value estimates could result in correct policy improvements as well, giving rise to Generalized Policy Iteration (GPI) \citep{sutton2018reinforcement}. Thus, the assumption is not necessary for the cases of dynamic programming and certain approximate RL cases, to be introduced soon.
+
+We will introduce detailed policy evaluation and policy improvement methods in the following sections regarding dynamic programming and (approximate) RL, respectively. 
+% To build better intuitions, we will first take a look at the simplest policy evaluation method - Monte-Carlo estimation.
+
+% \subsection{Monte-Carlo Estimation for Policy Evaluation}
+% For policy evaluation, the simplest form of policy evaluation is \textbf{Monte-Carlo Estimation}, sometimes abbreviated as MC, \ie{}, to apply the policy in the evaluation environments again and again until we collect enough statistics about the performance of the policy.
+
+% Backed by the Law of Large Numbers, Monte-Carlo estimation is evidently unbiased and require nothing other than interaction with the environment, in contrast with dynamic programming methods, to be introduced soon. However, its low efficiencies and high variances often mean that they cannot be used effectively for an agent to quickly adapt its behaviors in environments demanding quick actions or costly for interactions.
+
+% MC methods are ways of solving the RL problem based on averaging sample returns. MC is well-defined for episodic setting, as presented in Algo.~\ref{alg:MC}.
+
+% \begin{algorithm*}[htbp]
+% \caption{Episodic (First-visit) Monte-Carlo Prediction}
+% \label{alg:MC}
+% \KwIn{$\pi$ (policy to be evaluated), $\gamma$ (discount function), $N$ (maximum number of episodes)}
+% \KwOut{$V(s), \forall s \in \scriptS{}^{+}$ (state values for policy $\pi$)}
+% Initialize $V(s)$ arbitrarily, $\forall s \in \scriptS$\\
+% $\text{Returns}(s) = \text{an emptylist}$, $\forall s \in \scriptS$\\
+% \For{$n \in \{ 1, \dots, N \}$}{
+%     generate an episode following $\pi$: $S_0, A_0, R_1, S_1, A_1, R_2, \dots, S_{T-1}, A_{T-1}, R_{T}$\\
+%     $G = 0$\\
+%     \For{$t \in \{ T-1, T-2, \dots, 0 \}$}{
+%         $G = \gamma{S_{t+1}} G + R_{t+1}$\\
+%         \If{$S_t \notin \{ S_0, \dots, S_{t-1} \} $}{ \textcolor{darkgreen}{// visit every state only once, prefer the longer sum if many}\\
+%             Append $G$ to $\text{Returns}(S_t)$\\
+%         }
+%     }
+% }
+% \For{$s \in \scriptS{}$}{
+%     $V(s) = \text{mean}(\text{Returns}(s))$
+% }
+% \end{algorithm*}
+
+% The state-action values can also be predicted using a very similar method. We will introduce more policy evaluation and policy improvement methods after discussing their shared foundation - Dynamic Programming methods. %, which, in contrast with MC methods, require the access to the MDP definitions.
+
+\section{Dynamic Programming (DP)}
+\label{sec:dynamic_programming}
+
+Dynamic Programming (DP) is an optimization algorithm that simplifies a complicated problem by breaking it down into simpler sub-problems in a recursive manner \citep{bellman1957dynamic}.
+
+In the context of RL, DP mostly refers to a family of heavily-used algorithms that, given an environment MDP and access to all state-action combinations, computationally solve interesting quantities such as the values function given a certain policy, finding the optimal policies, \etc{}. Note that DP methods should be distinguished from the approximate RL methods, which are to be introduced later and are often call ``RL methods'' for short, as approximate RL methods do not assume access to the environment MDP and all state-action combinations. This should be intuitive, since DP methods do not employ the core RL strategy of learning from interactions. However, because of DP methods' provable convergence in solving the interesting quantities, they often serve as the bases of developments of approximate RL methods which can scale to real-world problem-solving, to be introduced later.
+
+DP is widely used to analytically calculate the ground truth values of relatively small sized environments, which can be used to analyze the performance of approximate RL methods which does not have the access to the environment MDP. Take the contributions of this thesis for example, we solve the optimal policies in Chap.~\ref{cha:CP} to compare the planned actions against the ground truth optimals, as well as the ground truth relationships between pairs of states in Chap.~\ref{cha:skipper} to understand how well the estimators work. Despite that DP could be used to solve an optimal policy, its use is limited in practice because of the need of access to environment MDP, as well as the expensive computational cost.
+
+\subsection{DP for Value Function}
+
+First, we consider the method of computing the state-value function $v_{\pi}$ for an arbitrary policy $\pi$,\ie{}, policy evaluation via DP. This is enabled by the following:
+
+\begin{coloredfact}{Existence \& Uniqueness of State-Value Function}{vfunc}
+The existence and the uniqueness of state-value function $v_{\pi}$ are guaranteed as long as either $\gamma < 1$ or termination will be reached from any state following $\pi$.
+\end{coloredfact}
+
+From the Bellman equation (\ref{eq:bellman_v_general}), we have
+
+$$v_{\pi}(s) = \sum_{a}{\pi(a|s) \sum_{s',r}{p(s',r|s,a)\left[ r + \gamma \cdot v_{\pi}(s')\right]}}$$
+
+This means, when the environment dynamics ($4$-argument $p$) is known, the Bellman equation gives a system of $|\scriptS|$ linear equations with $|\scriptS|$ unknowns, unsurprisingly solvable. In a compact matrix form, this linear system can be presented as:
+
+$$\bm{v}_{\pi} = \bm{r}_{\pi} + \gamma P_{\pi} \bm{v}_{\pi}$$
+
+where $\bm{r}_{\pi}$ is a $|\scriptS{}| \times 1$ vector in which $\bm{r}_{\pi}[i] = \sum_{a}{\pi(a|s_i) \sum_{s_j, r}{r \cdot p(s_j, r | s_i, a)}}$, $P$ is a $|\scriptS{}| \times |\scriptS{}|$ matrix in which $P_{\pi}[i,j] = \sum_{a}{\pi(a|s_i) p(s_j, r | s_i, a)}$.
+
+With the system in hand, the rest is just to solve it as $\bm{v}_{\pi} = (I - \gamma P_{\pi}) \backslash \bm{r}_{\pi}$ or $\bm{v}_{\pi} = (I - \gamma P_{\pi})^{-1} \bm{r}_{\pi}$. 
+
+Note that the $\scriptO({|\scriptS|}^3)$ complexity is a nightmare for problems with large state spaces. Thus, it is desirable to change this method into an iterative method with lower computational complexity. 
+
+% The tool for this conversion is the matrix splitting, a method for converting the problems of solving linear equations into iterative methods with presumably lower computational complexity.
+
+% \begin{coloredfact}{Matrix Splitting}{matsplit}
+% To solve linear equation $A\bm{x} = \bm{b}$, where $A$ is non-singular, we can split matrix $A$ as $A = M - N$, where $M$ and $N$ are greater or equal to $0$ element-wise. Then, the formula $$\bm{x}_{t+1} = M^{-1} \bm{b} + M^{-1} N \bm{x}_t$$
+% leads to the solution if the spectral radius $\rho(M^{-1}N)$, \ie{}, the largest absolute value of the eigenvalues of $M^{-1}N$, is less than $1$ and the spectral radius is also the convergence rate of the iteration. 
+% \end{coloredfact}
+
+% With this, when we set $M=I$ and $N=\gamma P_{\pi}$ and $\bm{b} = \bm{r}_\pi$, we achieve 
+
+Thus, we arrive at the \textit{iterative policy evaluation method}. It is simple and powerful, turning Bellman equation into an iterative formula achieves the convergence to the true values. One can also prove the convergence of iterative policy evaluation using Banach's fixed point theorem, by showing that the Bellman operator is a contraction.
+
+\phantomsection
+\label{sec:contraction}
+
+\begin{coloreddefinition}{Bellman Operator}{bellmanopr}
+Given an MDP with its dynamics $p$, a policy $\pi$ and discount function $\gamma$, the \textit{Bellman operator} $\scriptB_{\pi}: \doubleR^{|\scriptS|} \to \doubleR^{|\scriptS|}$ is defined by
+\begin{equation}\label{eq:bellman_operator}
+(\scriptB_{\pi}v)(s) \coloneqq \sum_{a}{\pi(a|s) \sum_{s', r}{p(s',r|s,a)[r + \gamma v(s')]}}
+\end{equation}
+
+Or equivalently in matrix form,
+\begin{equation}\label{eq:bellman_operator_matrix}
+\scriptB_{\pi} \bm{V} \coloneqq \bm{r}_{\pi} + \gamma P_{\pi} \bm{V}
+\end{equation}
+where $\bm{r}_{\pi}$ is a $|\scriptS{}| \times 1$ vector in which $\bm{r}_{\pi}[i] = \sum_{a}{\pi(a|s_i) \sum_{s_j, r}{r \cdot p(s_j, r | s_i, a)}}$, $P$ is a $|\scriptS{}| \times |\scriptS{}|$ matrix in which $P_{\pi}[i,j] = \sum_{a}{\pi(a|s_i) p(s_j, r | s_i, a)}$.
+\end{coloreddefinition}
+
+\begin{coloreddefinition}{Contraction}{contraction}
+Let $\langle X, d \rangle$ be a complete metric space. Then a map $\scriptT: X \to X$ is called a \textbf{contraction mapping} on $X$ if there exists $q \in [0, 1)$ \st{}
+$$\forall x, y \in X, d(\scriptT(x), \scriptT(y)) \leq q \cdot d(x, y)$$
+\end{coloreddefinition}
+
+% \begin{coloredtheorem}{Banach–Caccioppoli}{fixed_point}
+% Let $\langle X, d \rangle$ be a non-empty complete metric space with a contraction mapping $\scriptT: X \to X$, then $\scriptT$ admits a \textbf{unique} fixed point $x^* \in X$, \ie{}, $\scriptT(x^*) = x^*$. Moreover, $x^*$ can be found as follows: start with an arbitrary element $x_0 \in X$ and define a sequence $\{ x_n \}$ by $x_n = \scriptT(x_{n-1})$ for $n \geq 1$, then $x_n \to x^*$. 
+% \end{coloredtheorem}
+
+We can prove that the Bellman operator, which is essentially turning the Bellman equation into an iterative formula, on the \textit{estimated value function} or simply \textit{value estimate} is a contraction. The unique fixed point must be the true value because that is when the Bellman equation holds. % The vanilla version is provided in Algo.~\ref{alg:IPE}.
+
+% \begin{algorithm*}[htbp]
+% \caption{Iterative Policy Evaluation}
+% \label{alg:IPE}
+% \KwIn{$p(s', r | s, a)$ (transition probability function), $\pi$ (policy to be evaluated), $\gamma$ (discount factor), $\theta$ (accuracy threshold)}
+% \KwOut{$V(s), \forall s \in \scriptS{}^{+}$ (state values for policy $\pi$)}
+% Initialize $V(s), \forall s \in \scriptS{}^{+}$ to be $0$\\
+% $\Delta = \infty$\\
+% \While{$\Delta \geq \theta$}{
+%     $\Delta = 0$\\
+%     \For{each $s \in \scriptS{}^{+}$}{
+%         $v = V(s)$\\
+%         $V(s) = \sum_{a}{\pi(a|s) \sum_{s',r}{p(s',r|s,a)[r+\gamma  \cdot V(s')]}}$\\
+%         $\Delta = max(\Delta, |{v - V(s)}|)$\\
+%     }
+% }
+% \end{algorithm*}
+
+% Both matrix splitting and the contraction of Bellman operator leads to the same algorithm, as provided in Algo.~\ref{alg:IPEM} in matrix forms.
+
+% \begin{algorithm*}[htbp]
+% \caption{Iterative Policy Evaluation (Matrix)}
+% \label{alg:IPEM}
+% \KwIn{$p(s', r | s, a)$ (transition probability function), $\pi$ (policy to be evaluated), $\gamma$ (discount factor), $\theta$ (accuracy threshold)}
+% \KwOut{$\bm{v}_{\pi}$ (the state value vector for policy $\pi$, where the components correspond to indexed states in $\scriptS{}^{+}$)}
+
+% Initialize $\bm{v}_{|\scriptS{}|\times1} = \bm{0}$\\
+% Form policy-conditioned transition matrix $P_{\pi}$, where $P_{\pi}[i,j] = \sum_{a}{\pi(a|s_i) p(s_j, r | s_i, a)}$\\
+% Form policy-conditioned reward vector $\bm{r}_{\pi}$, where $\bm{r}_{\pi}[i] = \sum_{a}{\pi(a|s_i) \sum_{s_j, r}{r \cdot p(s_j, r | s_i, a)}}$\\
+% $\Delta = \infty$\\
+% \While{$\Delta \geq \theta$}{
+%     $\bm{v}' = \bm{r}_{\pi} + \gamma P_{\pi} \bm{v}$\\
+%     $\Delta = \| \bm{v}' - \bm{v} \|_{\infty}$\\
+%     $\bm{v} = \bm{v}'$
+% }
+% \end{algorithm*}
+
+The state-action value function $q_{\pi}$ can be computed trivially by combining the computed $v_{\pi}$ with the tabular reward function:
+
+\begin{equation}
+\label{eq:vqconversion}
+q(s,a) = r(s,a) + \gamma \cdot \sum_{s'} p_\pi(s,s') v(s'), \forall s \in \scriptS, \forall a \in \scriptA
+\end{equation}
+
+Now that we have an algorithm to reliably solve the true values of a policy, we can think about how to generalize this algorithm to compute other interesting quantities, including for more complex cases involving goal-conditioned policies. I present the following examples:
+
+In Chap.~\ref{cha:skipper}, we solved the cumulative rewards the agent would get by following a certain (goal-conditioned) policy $\pi$ going from one state to another. This is done by augmenting $\scriptS^{+}$ with the target state as an additional terminal state. Similarly, we also solved the cumulative discount from one state to another by making $r$ all zeros except when reaching the target state, giving $1$ instead;
+
+In Chap.~\ref{cha:delusions}, we solved the distance between a pair of states, under a certain policy $\pi$, \ie{}, how long it takes for policy $\pi$ to travel from one state to another, are computed by replacing the rewards $\bm{r}_{\pi}$ with a vector full of $-1$s and setting $\gamma$ to be $1$. The convergence was assisted by the fact that the used environments were abundant with terminal states and the agent's policies will almost surely send the agent to a terminal state within finite timesteps, per Fact.~\ref{fact:vfunc}.
+
+% \subsection{DP for State Distribution}
+% \label{sec:state_dist}
+% Given a policy, the expected frequency of states that the agent meet in the environment, which is recognized as the \textit{state frequency}, or the \textit{on-policy distribution}, can also be computed using DP. This distribution, when combined with the state-wise errors in policy evaluation, acquired by comparing a value estimator's outputs with the ground truths, leads to a scalar metric of overall policy evaluation accuracy with a natural weighting on each state. It is worth noting that, given a fixed policy, this frequency is neither dependent on discount $\gamma$ nor the reward function. 
+
+% In RL literature, the state on-policy distribution is often assumed to be equal to the ``stationary distribution''\footnote{This ``stationary distribution'' is actually not a stationary distribution, as the terminal states of MDP eliminates the ergodicity. The ``stationary distribution'' $\bm{d}$ in the episodic setting means only the solution of $\bm{d}^T P_{\pi} = \bm{d}^T$.} of the Markov chain induced by the MDP and the policy $\pi$. However, this assumption is inappropriate because the two distributions are not equivalent in the episodic setting.
+
+% One can use an iterative method to solve the true on-policy distribution, given initial state distribution $p_0$ and dynamics $P_{\pi}$. The idea is to calculate the averaged number of state visits for agents within their lifetime, as shown in Algo.~\ref{alg:IDPSF}.
+
+% \begin{algorithm*}[htbp]
+% \caption{Iterative DP for State Frequencies in Matrix Form}
+% \label{alg:IDPSF}
+% \KwIn{$p(s', r | s, a)$ (transition probability function), $\pi$ (policy to be evaluated), $\theta$ (accuracy threshold), $\bm{d}_0$ (initial distribution of states, represented with an indexed vector whose components are the discrete probabilities)}
+% \KwOut{$\bm{d}_{\pi}$ (expected frequencies of states under policy $\pi$, where the components correspond to indexed states in $\scriptS{}^{+}$)}
+
+% Initialize $\bm{d}_{\pi} = \bm{d}_0$\\
+% Form policy-conditioned transition matrix $P_{\pi}$, where $P_{\pi}[i,j] = \sum_{a}{\pi(a|s_i) p(s_j, r | s_i, a)}$\\
+% $\bm{d}' = \bm{d}_0$\\
+% \For{$i \in \{ 1, \dots, |\scriptS| \}$}{
+%     \If{$s_i$ is terminal}{
+%         $\bm{d}'(i) = 0$ \textcolor{darkgreen}{// terminal states can only be visited once}\\
+%     }
+% }
+% \While{$\|\bm{d}'\|_1 \geq \theta$}{
+%     $\bm{d}' = P_{\pi}^T \bm{d}'$\\
+%     $\bm{d}_{\pi} = \bm{d}_{\pi} + \bm{d}'$\\
+%     \For{$i \in \{ 1, \dots, |\scriptS| \}$}{
+%         \If{$s_i$ is terminal}{
+%             $\bm{d}'(i) = 0$
+%         }
+%     }
+% }
+% $\bm{d}_{\pi} = \bm{d}_{\pi} / \|\bm{d}_{\pi}\|_1$ \textcolor{darkgreen}{//normalize}\\
+% \end{algorithm*}
+
+% To achieve a more compact form of this algorithm, we need the following proposition:
+
+% \begin{coloredtheorem}{State Frequency}{statefreq}
+% In an MDP, the expected state frequency of an agent during one lifetime (from the beginning of an episode to the end) is the same as the expected state frequency of an agent that is redeployed to the MDP after termination.
+
+% Also, the state-frequency $\bm{d}_{\pi}$ satisfies:
+% \begin{equation}
+% \bm{d}_{\pi}^T \tilde{P}_{\pi} = \bm{d}_{\pi}^T
+% \end{equation}
+% where $\tilde{P}_{\pi}$ is the matrix that replaces the rows corresponding to the terminal states in $P_{\pi}$ with $\bm{d}_0^T$.
+% \end{coloredtheorem}
+
+% \begin{proof}
+% Redeploying a terminated agent back to the MDP is upon the initial state distribution. Thus, the portion of terminated agents will follow exactly the one-life state frequencies in each of their following lives.
+% \end{proof}
+
+% With this we have a compact matrix-form algorithm and can spot the distribution mismatch more easily. Having spotted the problem, in this thesis, we stick to the more accurate definition of on-policy distribution.
+
+% Note that to use this augmented $\tilde{P}_{\pi}$ for policy evaluation, we need to replace the core operation $\bm{V} = \bm{r}_\pi + \gamma P_\pi \bm{V}$ with $\bm{V} = \bm{r}_\pi + \gamma \tilde{P}_\pi \bm{V}$\footnote{I argued in \citet{zhao2020eligibility} that it is more appropriate to call $P_\pi$ a ``value'' transition matrix, and $\tilde{P}_\pi$ the ``state'' transition matrix.}.
+
+% Also, the convergence of certain policy evaluation operators with function approximation cases like linear, heavily relies on the assumption that the ``stationary distribution'' is the on-policy distribution, which is critical for a required lemma\footnote{$\| P_\pi \bm{z} \|_{\bm{d}} \leq \| \bm{z} \|_{\bm{d}}$ if $\bm{d}^T P_{\pi} = \bm{d}^T$}. I proved the lemma with the more correct setting\footnote{$\| P_\pi \bm{z} \|_{\bm{d}} \leq \| \bm{z} \|_{\bm{d}}$ if $\bm{d}^T \tilde{P}_{\pi} = \bm{d}^T$} in my master thesis \citep{zhao2020eligibility}.
+
+\subsection{DP for Optimal Policy}
+Relying additionally on the policy improvement theorem \citep{bellman1957dynamic}, DP are empowered to find better policies, which ultimately leads to the optimal policies.
+
+\phantomsection
+\label{sec:VI}
+
+DP methods can naturally rely on \textit{policy iteration} to find better policies, essentially alternating policy evaluation and policy improvement. However, such alternation may not always be trivially explicit. For example, \textbf{Value Iteration (VI)} is a representative DP method for finding the optimal value function by applying the Bellman optimality equations iteratively. VI conducts search in the constrained space of deterministic greedy policies and combines policy evaluation and policy improvement in one unifying step. %, as shown in Algo.~\ref{alg:VI}. 
+
+% \begin{algorithm*}[htbp]
+% \caption{Value Iteration}
+% \label{alg:VI}
+% \KwIn{$p(s', r | s, a)$ (transition probability function), $\pi$ (policy to be evaluated), $\gamma$ (discount factor), $\theta$ (accuracy threshold)}
+% \KwOut{$V(s), \forall s \in \scriptS{}^{+}$ (state values for policy $\pi$)}
+% Initialize $V(s), \forall s \in \scriptS{}^{+}$ to be $0$\\
+% $\Delta = \infty$\\
+% \While{$\Delta \geq \theta$}{
+%     $\Delta = 0$\\
+%     \For{each $s \in \scriptS{}^{+}$}{
+%         $v = V(s)$\\
+%         $V(s) = \max_{a} \sum_{s',r}{p(s',r|s,a)[r+\gamma  \cdot V(s')]}$\\
+%         $\Delta = max(\Delta, |{v - V(s)}|)$\\
+%     }
+% }
+% \end{algorithm*}
+
+With the computed V-value function (for the optimal policy), we can recover the policy from the converted Q-value function via Eq.~\ref{eq:vqconversion}.
+
+VI has other uses and can take in alternative forms. In Sec.~\ref{sec:q_learning} on Page.~\pageref{sec:q_learning}, we will introduce Q-learning, an approximate RL algorithm that draws heavy similarity to VI; In Chap.~\ref{cha:skipper} (Page.~\pageref{cha:skipper}), we use VI (over options) to solve an approximate plan given an estimated proxy problem, which essentially takes the same form as an MDP, to make plans, \st{} the agent can know which subgoal is to follow.
+
+Now that we have finished introducing the DP algorithms relevant to this thesis (while skipping other less relevant use cases), we transition to the canonical RL methods.
+
+\section{(Approximate) RL}
+Approximate RL methods are used when there is no access to the MDP ground truth nor all combinations of state-action pairs. Thus, approximate RL represents the case most true to trial-and-error based sequential decision-making and is often abbreviated as just ``RL''. Learning from actual experience is striking because it requires no prior knowledge of the environment’s dynamics, yet could still attain optimal behavior.
+
+Approximate RL methods build on the principles of DP. Many RL algorithms, such as Q-learning (Sec.~\ref{sec:q_learning}, Page.~\pageref{sec:q_learning}) and actor-critic methods (Sec.~\ref{sec:actor_critic}, Page.~\pageref{sec:actor_critic}), use DP ideas but adapt them for function approximation.
+
+The similarity between approximate RL and DP is that it also relies on the two key steps of:
+
+\begin{itemize}[leftmargin=*]
+\item \textbf{Policy Evaluation}: Just like DP methods, approximate RL aims to estimate value functions, but it does so in a way that does not assume access to environment MDP, and can often rely on function approximations when the states need to be inferred.
+
+\item \textbf{Policy Improvement}: Approximate RL and DP both use similar principles for policy improvement. In approximate RL, the learned value functions can guide policy updates, analogous to how DP updates policies based on value function estimates.
+\end{itemize}
+The difference is more pronounced in the aspects of:
+
+\begin{itemize}[leftmargin=*]
+\item \textbf{Convergence and Stability}: While DP methods provide guarantees of convergence to the optimal solutions, approximate RL methods can struggle with convergence due to function approximation, particularly when using non-linear approximators like neural networks.
+\item \textbf{Exploration-Exploitation Tradeoff}: Because of the lack of access to all state-action pairs, approximate RL methods need to optimize for a fundamental tradeoff between exploration and exploitation, which correspond to trying diverse actions to find better previously unknown rewarding trajectories \vs{} committing to known rewarding trajectories for better returns. The tradeoff also affects an RL agent in other ways. For example, from a ``dataset''-label perspective, we could say that in RL problems, the data samples are dynamically collected by the agents' decisions. This also means the quality of the ``dataset'' is also determined by the quality of the past decisions, making learning quality dependent on behavior. 
+\end{itemize}
+
+% Therefore, RL is, like many problems, an exploration-exploitation tradeoff problem with no static datasets. The learner is not told which actions to take, but instead must discover which actions yield the most reward by trying them. Some literature regard the two fundamental problems of RL are \textbf{exploration} and \textbf{credit assignment}, \ie{}, exploring the possibilities in the world and understanding the consequences of its actions, respectively.
+
+\subsection{RL Agent Components}
+\label{sec:RL_agent_components}
+
+To implement the two core mechanisms, \ie{}, policy evaluation and policy improvement, an (approximate) RL agent is often equipped with the follow components:
+
+\begin{itemize}[leftmargin=*]
+    \item A \textbf{value estimator} that approximates the (true) value function to conduct policy evaluation. Depending on the learning algorithm and learning capacity, policy evaluation by a value estimator may be misaligned with the objective performance it has in the environments, \ie{}, in approximate RL, value estimates do not necessarily converge to the true values of the value function. Value estimators could also be used to estimate other interesting auxiliary ``values'', those beyond the expected on-policy future return, as in Chap.~\ref{cha:skipper}. % With state representations, non-tabular value estimators are often explicitly used to take advantage of its generalization abilities to accelerate credit assignment. % Evidently, Monte Carlo method can be used to conduct value estimation.
+    \item A \textbf{policy} that can be improved based on the value estimates, the output of the value estimator. The improvements can be made by a search or optimization algorithms. The policy component of an agent could also be implicit. For example, we can always extract the greedy policy from a Q-value estimator if convenient, as shown later.
+    \item An optional \textbf{model} of the environment. A model is something that mimics the behavior of certain aspects of the environment, or more generally, that allows inferences to be made about how the environment will behave. For example, given a state and action, the model might predict the resultant next state and next reward. Models are used for planning, by which we are not limited to deciding on a course of action by considering possible futures before they are actually experienced. A model could assist policy evaluation, as to be discussed as background planning, or could be an active component of the agent's policy, as to be discussed as decision-time planning. A model could also take many forms, as some models mimic the environment MDP, predicting the next state and reward out of the current state and intended action, while others could even predict partial aspects of distant future states, \etc{}. Methods for solving RL problems that use models and planning are called \textbf{model-based methods}, as opposed to \textbf{model-free methods} that are explicitly trials-and-errors, viewed as almost the opposite of planning. A model-based method contains all components of a model-free method, and the latter can be seen as a foundation of the former. We are particularly interested in and primarily dealing with model-based methods in this thesis.
+\end{itemize}
+
+% Acting as a metric for policy comparison and improvement, a \textbf{value function} specifies what is good in the long run, learning from the reward signals indicating what is good in an immediate sense. Roughly, the value of a state is the total amount of reward an agent can expect to accumulate over the future, starting from that state. Whereas rewards determine the immediate desirability of environmental states, values indicate the long-term desirability of states after taking into account the states that are likely to follow and the rewards available in those states. Rewards are in a sense primary, whereas values, as predictions of rewards, are secondary. Without rewards there could be no values, and the only purpose of estimating values is to achieve more reward.
+
+% Roughly speaking, a policy is a mapping from perceived states of the environment to actions to be taken when in those states. Sometimes, a policy can be inferred directly from a value estimator, therefore does not necessarily have to be separated from a value estimator. % The agent’s sole objective is to search for better policies that maximize the total reward it receives over the long run. 
+
+\subsection{Train \& Evaluate}
+An RL agent is deployed into its training environments with a certain budget of agent-environment interactions. During its interactions, the agent is expected to \textit{autonomously} collect data, estimate the values of its policies and make improvements accordingly. 
+
+To understand the learned capabilities, an agent's performance is evaluated in expectation over environment instantiations, where in the real-world, these evaluation environments can often be different from the training environments.
+
+One important objective of RL is to achieve high (generalization) performance on evaluation tasks after learning from a limited number of training tasks, where the evaluation and training distributions may differ; for instance, a policy for a robot may need to be trained in a simulated environment for safety reasons, but would need to be deployed on a physical device, a setting called sim2real. Discrepancy between task distributions is often recognized as a major reason why RL agents are yet to be applied pervasively in the real world  \citep{igl2019generalization}.
+
+In the chapters describing the contribution of this thesis, we employ on an experimental setting that emphasizes the evaluation of zero-shot generalization skills. Intuitively, these experiments evaluate if an agent could truly learn generalizable skills, instead of relying on memorization. 
+
+Our experiment settings often involve training on limited number of environments and testing on a whole distribution of unseen environments with the same nature as the training tasks (skills needed to finish the task remain consistent). To generalize well, the agents need to build learned skills which capture the consistent knowledge across tasks. I will introduce the details in the next chapters. 
+
+\subsection{Temporal Difference Learning}
+\label{sec:TD_learning}
+
+Temporal Difference (TD) learning is a fundamental concept and methodology in credit assignment within approximate RL. Credit assignment refers to the challenge of determining which actions lead to a particular outcome \citep{minsky1961steps}, and in the case of TD, it involves associating returns with states or state-action pairs.
+
+TD learning combines elements of Monte Carlo (MC) simulation and Dynamic Programming (DP) to enable efficient policy evaluation. Like MC methods, TD can learn directly from raw experience without access to a model of the environment’s dynamics. Like DP, TD methods \textbf{bootstrap}, updating estimates based partly on other learned estimates, without waiting for the final outcome.
+
+While MC methods must wait until the end of an episode to update the value of $V(S_t)$ (only after $G_t$ is known), TD methods can update their estimates at each timestep. At timestep $t+1$, they immediately make an update using the observed reward $R_{t+1}$ and the estimate $V(S_{t+1})$. The simplest TD method performs the following update:
+
+\begin{equation}
+\label{eq:TD_1}
+V(S_t) = V(S_t) + \alpha \left[ R_{t+1} + \gamma V(S_{t+1}) - V(S_{t}) \right]
+\end{equation}
+immediately on transition to $S_{t+1}$ and receiving $R_{t+1}$. The update rule \ref{eq:TD_1} is called the \textbf{$1$-step TD update}, where we recognize $R_{t+1} + \gamma V(S_{t+1}) - V(S_{t})$ as the \textbf{($1$-step) TD error} and $R_{t+1} + \gamma V(S_{t+1})$ as the \textbf{(TD-)update target}. Every $1$-step TD update can be understood as: walk towards the update target $R_{t+1} + \gamma V(S_{t+1})$ from the current (estimated) value $V(S_{t})$ with a step length of $\alpha \left[ R_{t+1} + \gamma V(S_{t+1}) - V(S_{t}) \right]$ (decreasing the distance by ratio $\alpha$). Note that the update target $R_{t+1} + \gamma V(S_{t+1})$ is also a random variable. % The $1$-step update yields the simplest TD method, presented in Algo.~\ref{alg:TD0}.
+
+% \begin{algorithm*}[htbp]
+% \caption{Tabular $1$-step TD Policy Evaluation}
+% \label{alg:TD0}
+% \KwIn{$\pi$ (policy to be evaluated), $\gamma$ (discount function), $\alpha \in (0, 1]$ (learning rate), $N$ (maximum number of episodes)}
+% \KwOut{$V(s), \forall s \in \scriptS{}^{+}$ (state values for policy $\pi$)}
+% Initialize $V(s) = 0$, $\forall s \in \scriptS$\\
+
+% \For{$n \in \{1, \dots, N\}$}{
+%     Initialize $S$\\
+%     \While{$S$ is not terminal}{
+%         $A = \text{action given by} \pi(\cdot|s)$\\
+%         Take action $A$, observe $R, S'$\\
+%         $V(S_t) = V(S_t) + \alpha \left[ R_{t+1} + \gamma V(S_{t+1}) - V(S_{t}) \right]$\\
+%         % $S = S'$
+%         % $G = R_{t+1} + \gamma G$
+%     }
+% }
+% \end{algorithm*}
+
+\begin{coloredfact}{Convergence of $1$-step TD}{convtdzero}
+Under the episodic setting, given an MDP and a policy $\pi$, either discounted or not, $1$-step TD achieves convergence to $v_\pi$ asymptotically (in tabular setting).
+\end{coloredfact}
+
+The flexibility of TD learning, as well as its convergence guarantees in tabular and linear cases, set itself as a foundation for most RL methods, keeping generalized policy iteration valid even without direct access to MDPs.
+
+TD has also received attention in neuroscience because of its connections to the reward-prediction-error hypothesis. It was discovered that the firing rate of dopamine neurons in the ventral tegmental area and substantia nigra appear to mimic the error function in the algorithm \citep{schultz1997neural}.
+
+Note that TD updates can also use targets constructed from value estimates over multiple steps, known as \textbf{multi-step TD}. However, we will omit a detailed discussion of these methods due to their limited relevance to this thesis.
+
+% \subsection{Multi-Step TD}
+% \red{this is probably not needed}
+% Besides the $1$-step TD target, the update target could be many things as long as the convergence to the true value can be guaranteed. In this subsection, we introduce $n$-step TD methods that generalize both TD and MC methods so that one can shift from one to the other smoothly as needed to meet the demands of a particular task. $n$-step methods span a spectrum with MC methods at one end and $1$-step TD methods at the other.
+
+% \begin{coloreddefinition}{$n$-step return}{nstepret}
+
+% The $n$-step return is defined as:
+% \begin{equation}
+% \label{eq:n_step_return}
+% G_{t:t+n} = R_{t+1} + \gamma R_{t+2} + \cdots + \prod_{k=1}^{n}{\gamma(S_{t+k})} V_{t+n-1}(S_{t+n}), \forall n \geq 1, \forall 0 \leq t \leq T-n
+% \end{equation}
+% \end{coloreddefinition}
+
+% The $n$-step return serves as the update target for an \textit{$n$-step TD update}.
+
+% \begin{algorithm*}[htbp]
+% \caption{Tabular $n$-step TD Policy Evaluation (TD($n$))}
+% \label{alg:TDn}
+% \KwIn{$\pi$ (policy to be evaluated), $\gamma$ (discount function), $\alpha$ (learning rate), $M$ (maximum number of episodes), $n$ (step parameter)}
+% \KwOut{$V(s), \forall s \in \scriptS{}^{+}$ (state values for policy $\pi$)}
+% Initialize $V(s) = 0$, $\forall s \in \scriptS$\\
+
+% \For{$m \in \{1, \dots, M\}$}{
+%     Initialize and store non-terminal $S_0$\\
+%     $T = \infty$\\
+%     \For{$t \in \{0, 1, 2, \dots\}$}{
+%         \If{$t < T$}{
+%             Take action according to $\pi(\cdot|s)$, observe and store $R_{t+1}, S_{t+1}$\\
+%             \If{$S_{t+1}$ is terminal}{
+%                 $T = t + 1$\\
+%             }
+%         }
+%         $\tau = t - n + 1$\\
+%         \If{$\tau \geq 0$}{
+%             $G = \sum_{i=\tau+1}^{min(\tau+n, T)}{\left(\prod_{k=1}^{i}{\gamma(S_{k})}\right) \cdot R_i}$\\
+%             \If{$\tau + n < T$}{
+%                 $G = G + \prod_{k=1}^{n}{\gamma(S_{\tau + k})} V(S_{\tau + n})$\\
+%             }
+%             $V(S_{\tau}) = V(S_{\tau}) + \alpha [ G - V(S_{\tau}) ] $\\
+%         }
+%         \If{$\tau = T - 1$}{
+%             \textbf{break}
+%         }
+%     }
+% }
+% \end{algorithm*}
+
+% The $n$-step return uses the value function $V_{t+n-1}$ to correct for the missing rewards beyond $R_{t+n}$. The error reduction property of $n$-step returns lead to its convergence under appropriate technical conditions \citep{sutton2018reinforcement}. 
+
+% We notice that, when $n$ is set to be the timestep difference between the current timestep and the timestep for the end of the episode, the $n$-step return becomes the MC return. And when $n=1$, the method collapses to $1$-step TD. This is to say that $n$-step returns, as update targets, generalizes the TD and MC and yields all the shades between them.
+
+\subsection{Off-Policy Evaluation}
+\label{sec:off_policy_evaluation}
+
+In approximate RL, possibly because of the limited agent-environment interaction budgets or others, an agent is often required to estimate the values of one policy when acting upon another. Let us call the policy to learn about the \textit{target policy}, and the policy used to generate behavior the \textit{behavior policy}. In this case, we say that learning is from data ``off'' the \textit{target policy}, and the overall process is termed off-policy learning, in contrast with on-policy learning, where the agents act accordingly to the values of the policy it estimates.
+
+In \citet{watkins1992q}, the author proved that learning a Q-value estimator with $1$-step TD yields convergent value estimation results in tabular cases. And this even applies to off-policy learning if the update targets are constructed carefully using the target policy. This analysis, in theory, granted RL agents freedom to learn a Q-value estimator from any experience about the target policies. However, as later years has shown, when combined with function approximation, this approach still faces lots of challenges in practice, especially when the agent is asked to learn on experiences acquired by other agents, without access to their policies \citep{fujimoto2021minimalist}.
+
+Off-policy learning can also be conducted with V-value estimators using importance sampling. However, I will skip further discussions, because it is mostly irrelevant to the contributions of this thesis.
+
+% \section{Off-Policy Learning Using Importance Sampling}
+% How can an agent estimate the values of one policy when acting upon another? Let us call the policy to learn about the \textit{target policy}, and the policy used to generate behavior the \textit{behavior policy}. In this case we say that learning is from data ``off'' the \textit{target policy}, and the overall process is termed off-policy learning.
+
+% \subsection{Importance Sampling}
+% Importance sampling is a technique to use a sample of examples from a different distribution to estimate the expectation of some target distribution. It requires the knowledge to explicitly compute the probability of each sample under the two distributions. Let the target distribution be $\pi$ and the distribution that generated the sample be $b$, we have the following.
+
+
+% \begin{coloreddefinition}{Importance Sampling Estimator}{ISestimator}
+% Suppose that $\pi$ and $b$ are probability density (mass) functions that satisfy $b(x)=0 \implies \pi(x)=0$, \ie{}, $\pi$ is absolutely continuous \wrt{} $b$, we define the importance sampling estimator $\hat{\mu}_{IS}$ of $\doubleE[f(x)]$ as:
+% \begin{equation}\label{eq:is_estimator}
+% \hat{\mu}_{IS} \equiv \frac{1}{n} \sum_{i=1}^{n}{f(x_i)\rho(x_i)}
+% \end{equation}
+% where $\rho(x_i) \equiv \frac{\pi(x_i)}{b(x_i)}, x_i \sim b$ is recognized as an \textit{importance weight function} and its value is recognized as an \textit{importance sampling ratio}.
+% \end{coloreddefinition}
+
+% The importance sampling estimator has some properties that we need to know.
+
+% \begin{coloredtheorem}{Bias of Importance Sampling Estimator}{bias_ISestimator}
+% Let $\mu \equiv \doubleE_{\pi}[f(x)]$,
+% $$\doubleE_{b}[\hat{\mu}_{IS}] = \mu, {Var}_{b}[\mu_{IS}] = \int{\frac{(f(x)\pi(x) - \mu b(x))^2}{b(x)} dx}$$
+% \end{coloredtheorem}
+
+% The proof is straightforward algebra. The unbiasedness shows that importance sampling ratios can be used to estimate the statistics of data even if they are generated using from different sources. However, the variance will bring trouble, if $\pi$ and $b$ are different.
+
+% \subsection{Importance Sampling based Off-Policy Learning}
+% Now we plug the theory of importance sampling into RL. Let the target policy be $\pi$ and the behavior policy be $b$. Given a starting state $S_t$, the probability of the subsequent state-action trajectory, $A_t, S_{t+1}, \dots, S_T$, occurring under $\pi$ is:
+% \begin{equation}
+% \nonumber
+% \begin{aligned}
+% & \doubleP\{ A_t, S_{t+1}, \dots, S_T |S_t, A_{t: T-1} \sim \pi \}\\
+% & = \pi(A_t | S_t) p(S_{t+1} | S_t, A_t) \pi(A_{t+1} | S_{t+1}) \cdots p(S_T | S_{T-1}, A_{T-1})
+% & = \prod_{k = t}^{T-1}{\pi(A_k | S_k) p(S_{k+1} | S_k, A_k)}
+% \end{aligned}
+% \end{equation}
+% where $p$ is the $3$-argument transition function. The relative probability (importance sampling ratio) of the trajectory under the policies $\pi$ and $b$ is:
+
+% $$\rho_{t: T-1} \equiv \frac{\prod_{k = t}^{T-1}{\pi(A_k | S_k) p(S_{k+1} | S_k, A_k)}}{\prod_{k = t}^{T-1}{b(A_k | S_k) p(S_{k+1} | S_k, A_k)}} = \prod_{k = t}^{T-1}{\frac{\pi(A_k | S_k)}{b(A_k | S_k)}}$$
+
+% The canceling of the terms show that importance sampling ratio of trajectories does not depend on the MDP's dynamics. With this we have
+
+% $$\doubleE_b[\rho_{t:T-1}G_t | S_t = s] = v_{\pi}(s)$$
+
+% This means that Monte-Carlo method can learn the target values as long as we have the computational access to the importance sampling ratios. We will not cover the details of off-policy MC.
+
+% \subsection{Per-Decision Importance Sampling}
+% The off-policy MC estimator, the unbiased one with high-variance, of return is:
+
+% \begin{equation}
+% \begin{aligned}
+% \rho_{t:T-1}G_t & = \rho_{t:T-1}\left( R_{t+1} + \gamma R_{t+2} + \cdots + \prod_{k=t+1}^{T-1}{\gamma_k}R_T \right)\\
+% & = \rho_{t:T-1} R_{t+1} + \gamma \rho_{t:T-1} R_{t+2} + \cdots + \prod_{k=t+1}^{T-1}{\gamma_k} \rho_{t:T-1} R_T
+% \end{aligned}
+% \end{equation}
+
+% Each sub-term is a product of a random reward and a random importance sampling ratio. For example, the first sub-term is:
+
+% $$\rho_{t:T-1}R_{t+1} = \frac{\pi(A_t | S_t)}{b(A_t | S_t)}\frac{\pi(A_{t+1} | S_{t+1})}{b(A_{t+1} | S_{t+1})}\frac{\pi(A_{t+2} | S_{t+2})}{b(A_{t+2} | S_{t+2})}\cdots\frac{\pi(A_{T-1} | S_{T-1})}{b(A_{T-1} | S_{T-1})}R_{t+1}$$
+
+% For this term, it is intuitive to see that only $\frac{\pi(A_t | S_t)}{b(A_t | S_t)}$ and $R_{t+1}$ are related, as one can easily show:
+
+% $$\doubleE_{b}\left[\frac{\pi(A_k | S_k)}{b(A_k | S_k)}\right] \equiv \sum_{a \sim b}{\frac{\pi(a | S_k)}{b(a | S_k)}} = \sum_{a}{b(a | S_k) \cdot \frac{\pi(a | S_k)}{b(a | S_k)}} = \sum_{a}{\pi(a | S_k)} = 1$$
+
+% Thus,
+
+% $$\doubleE_b[\rho_{t:T-1} R_{t+1}] = \doubleE_b[\rho_{t:t} R_{t+1}]$$
+
+% and also
+
+% $$\doubleE_b[\rho_{t:T-1} R_{t+k}] = \doubleE_b[\rho_{t:t+k-1} R_{t+k}]$$
+
+% With this we can get another unbiased return estimator, which is recognized as the \textit{per-decision} importance sampling estimator $\tilde{G}_t$ for return:
+
+% $$\doubleE_b[\rho_{t:T-1}G_t] = \doubleE_b[\tilde{G}_t]$$
+
+% and
+
+% \begin{equation}
+% \begin{aligned}
+% \tilde{G}_t &\equiv \rho_{t:t} R_{t+1} + \gamma \rho_{t:t+1} R_{t+2} + \cdots + \prod_{k=t+1}^{T-1}{\gamma_k} \rho_{t:T-1} R_T\\
+% & = \rho_{t} R_{t+1} + \gamma \rho_{t}\rho_{t+1} R_{t+2} + \cdots + \prod_{k=t+1}^{T-1}{\gamma_k} \cdot \prod_{j=t}^{T-1}{\rho_{j}} \cdot R_T &&\text{($\rho_{j} \equiv \frac{\pi(A_j | S_j)}{b(A_j | S_j)}$)}\\
+% & = \rho_{t} \left( R_{t+1} + \gamma \rho_{t+1} \left( R_{t+2} + \gamma_{t+2} \rho_{t+2} \left( \cdots \right) \right)  \right)
+% \end{aligned}
+% \end{equation}
+
+% Per-decision importance sampling enables off-policy bootstrapping. The change of the algorithm is just to multiply the learning rates of the TD updates by the per-decision importance sampling ratio. %TODO: to incorporate the idea at least somewhere
+
+\subsection{Q-Learning}
+\label{sec:q_learning}
+
+We now turn to Q-learning, an approximate RL method of learning optimal policy, through TD learning of state-action values, commonly referred to as \textbf{Q-values}. Q-learning is off-policy compatible, meaning it can learn from experiences generated by a policy different from the one being optimized. This makes Q-learning particularly flexible and widely applicable. Q-learning is an approximate RL algorithm that draws heavy similarity to value iteration used in DP, when access to the environment MDP is provided (Sec.~\ref{sec:VI}, Page.~\pageref{sec:VI}).
+
+The Q-learning update rule is defined as follows:
+
+\begin{equation}
+Q(s_t, a_t) \leftarrow Q(s_t, a_t) + \alpha \left( r_{t+1} + \gamma \max_{a'} Q(s_{t+1}, a') - Q(s_t, a_t) \right)
+\end{equation}
+
+where $Q(s_t, a_t)$ is the estimated value following taking action $a_t$ in state $s_t$, $r_{t+1}$ is the reward received during the transition, $\alpha$ is the learning rate, equivalent to a step size and $\max_{a'} Q(s_{t+1}, a')$ is the maximum estimated Q-value for the next state, reflecting the maximum value following taking the best action in the next state.
+
+For a Q-learning update, the combined term $r_{t+1} + \gamma \max_{a'} Q(s_{t+1}, a')$ is recognized as the  \textbf{update target} of Q-learning. In the variants of Q-learning, such as double Q-learning \citep{hasselt2015double}, the update target can be substituted with other terms. We will discuss this further in Sec.\ref{sec:DDQN} on Page.~\pageref{sec:DDQN}.
+
+Q-learning converges to the optimal Q-values under certain conditions (\eg{}, sufficient exploration of the state space, decaying learning rate) and ultimately leads to an optimal policy in the tabular case \citep{watkins1992q}.
+
+One of the most important modern deep RL methods, \textbf{Deep Q-Learning (\DQN{})}, combines Q-learning with \textbf{function approximation} using deep neural networks. We will introduce \DQN{} in detail in Sec.~\ref{sec:DQN} on Page.~\pageref{sec:DQN}.
+
+\subsection{Function Approximation}
+In classic MDPs and DP methods, states are typically enumerated in a tabular form, where all states are indexed and open-for-access explicitly. In this tabular setting, the agent can only be in one state at a time, and state estimates do not influence each other. While tabular approaches are useful for theoretical analysis, they become impractical in real-world scenarios, especially when the state space is large or continuous and cannot be easily discretized.
+
+In the more real-world setting - the \textbf{function approximation} case, an agent may be instead given observations that are representations of the states, or may have to use a function approximator to infer the states from the history of interactions. In either case, it has to employ a value estimator to map the state representations into estimated values. 
+
+In RL, function approximation primarily refers to using function approximators for value estimation, \ie{}, policy evaluation. While, policies themselves, could have function approximators of their own.
+
+When using observational inputs for value estimation, function approximators can help construct state representations - transformed or abstracted versions of the environment's true state, which is often abbreviated as simply the \textbf{state}. A state refers to the full configuration of the environment at a given time, containing all relevant information for decision-making, \ie{}, the sufficient statistics; In contrast, a state representation is a processed version of this state. When a state representation is formed by the agent itself, it typically involves feature extraction, dimensionality reduction, or other abstractions to make it easier for the agent to learn and generalize. With deep learning, these representations are often lower-dimensional embeddings that capture essential features while discarding irrelevant information. A state representation can take the shape of a vector, real-valued or even binary, or even a set of unordered objects, as shown in Chap.~\ref{cha:CP} (Sec.~\ref{sec:set_encoder}, Page.~\pageref{sec:set_encoder}).
+
+With function approximation, the two key problems of RL can be re-aligned towards representation (learning) and exploration, as suggested in \citet{amortila2024reinforcement}.
+
+In the tabular setting, methods like Temporal Difference (TD) learning can converge exactly to the value function because updates to each state are independent. However, with function approximation, updates to one state’s value may affect the estimates of many other states, making exact convergence difficult. This introduces a challenge: improving the estimate of one state might degrade the estimates of others, especially when the number of states exceeds the learnable parameters. This poses a \textbf{generalization dilemma}: while interference between state estimates is problematic, it can also accelerate learning by improving estimates for similar states.
+
+With optimization methods like gradient descent, surrogate losses (\eg{}, $L_1$ or $L_2$ distances) are often used to guide learning, typically in conjunction. This means, a loss that encourage the value estimates to be closer to their update targets will be established, and an optimizer will be applied to minimize such loss to achieve the convergence to the update targets. In contrast, vanilla TD learning does not seek to optimize a loss but provably converges in the respective cases.
+
+The learnable parts of the approximator are often abstracted and compiled into a collection of learnable \textbf{parameters}, which are also sometimes called \textbf{weights}.
+
+% Since there could be many states, generally the states' importance are weighted using the state frequency distribution $d_{\pi}$. With this we obtain a natural objective function, the state-value error, which is essentially the weighted mean squared value error between the true value and the value estimate.
+
+
+
+% Just as how we could evaluate policy evaluation in tabular case, we can evaluate how a function approximation based RL system perform by comparing the learned estimates with the DP-solved ground truths, if applicable.
+
+% \begin{coloreddefinition}{State-Value Error}{stateverror}
+% Given an MDP, for a state $s$, let its true value under target policy $\pi$ be $v_{\pi}(s)$. Given an estimated value $V_{\pi}(s)$ of the state $s$, the \textit{state value error} of the estimate $V_{\pi}(s)$ is defined as:
+% \begin{equation}
+% \nonumber
+% J(s) \equiv 1/2 \cdot (V_{\pi}(s) - v_{\pi}(s))^2
+% \end{equation}
+% \end{coloreddefinition}
+
+% The state value error of a value estimate is its squared distance to the true value. Weighting the state value error by their state frequency $d_{\pi}$ yields the following:
+
+% \begin{coloreddefinition}{Overall Value Error}{overallverror}
+% Given an MDP and a particular fixed indexing of its states, let its true state-values under target policy $\pi$ be $\bm{v}_{\pi}$, where each element of the vector corresponds to the true value of an indexed state and an value estimate. Given an estimate $\bm{V}_{\pi}$ of all the states, the \textbf{overall value error} of the estimate $\bm{V}_{\pi}$ is defined as:
+% \begin{equation}
+% \nonumber
+% J(\bm{V}_{\pi}) \equiv 1/2 \cdot {\| D_{\pi}^{1/2} \cdot (\bm{V}_{\pi} - \bm{v}_{\pi}) \|}_2^2
+% \end{equation}
+% where $D_{\pi}$ is the diagonalized state frequencies under $\pi$, \ie{}
+% \begin{equation}
+% \label{eq:Ddef}
+% D_{\pi} \equiv diag(d_\pi(s_1), d_\pi(s_2), \cdots, d_\pi(s_{|S|}))
+% \end{equation}
+% \end{coloreddefinition}
+
+% This criterion can be used with any form of value estimator, either tabular or with function approximators. The weights $D_{\pi}$ favor the states that will be met with higher frequency. The overall value error is often used to evaluate the performance of policy evaluation \citep{singh1997analytical}. When a perfect model of the environment MDP is known, $\bm{v}_{\pi}$ and $D_{\pi}$ can be exactly solved using DP, as discussed in Sec.~\ref{sec:dynamic_programming}. Thus, DP-solvable MDPs are the first-choices of testing the policy evaluation algorithms, as well as control algorithms.
+
+% An ideal goal in terms of policy evaluation would be to find a global optimum, a weight vector $\bm{w}^{*}$ for which $J(\bm{V}_{\pi}(\bm{w}^{*})) \leq J(\bm{V}_{\pi}(\bm{w}))$ for all possible $\bm{w}$. Reaching this goal is sometimes possible for simple function approximators such as linear function approximators, which are to be introduced later, but is rarely possible for complex function approximators, \eg{} artificial neural networks.
+
+\subsection{Semi-Gradient Methods for Learning Function Approximators}
+
+Popularly, we use differentiable value estimators $V(s; \bm{w})$ parameterized by a weight vector $\bm{w}$ to enable stochastic gradient-descent methods for approaching the update targets.
+
+% The weight vector $\bm{w}$ is a column vector with a fixed number of real valued components, $\bm{w} \equiv [w_1, \dots, w_d]^T$, and the value estimate $V(s, \bm{w})$ is a differentiable function of $\bm{w}$ for all $s \in \scriptS{}$.
+
+$\bm{w}$ can be updated at each of a series of discrete timesteps as before, $t \in \{1, 2, \dots\}$, trying to minimize the losses based on the value errors. Stochastic gradient-descent (SGD) methods do this by adjusting the weight vector based on each example by a small amount in the direction that would most reduce the error on that example:
+
+\begin{align}
+\label{eq:fa_true_gradient}
+\begin{split}
+\bm{w}_{t+1} \leftarrow  \bm{w}_{t} - \frac{1}{2} \alpha \nabla \left[v_{\pi}(S_t) - V_{\pi}(S_t, \bm{w}_t)\right]^2 = \bm{w}_{t} + \alpha \left[v_{\pi}(S_t) - V_{\pi}(S_t, \bm{w}_t)\right] \nabla V_{\pi}(S_t, \bm{w}_t)
+\end{split}
+\end{align}
+where $\alpha$ is the learning rate, a positive step-size hyperparameter or \textbf{learning rate} for short.
+
+Gradient descent methods are called ``stochastic'' when the update is done on only one or a few examples, selected stochastically. Over many steps, the overall effect is to minimize an average performance measure, such as the overall value error across all states.
+
+Obviously, we cannot use (Eq.~\ref{eq:fa_true_gradient}) to do update because the true value $v_{\pi}(S_t)$ is unknown. Thus, we must replace the update target $v_{\pi}(S_t)$ with an estimate $U_{t}$. If $U_{t}$ is unbiased, \ie{}, $\doubleE[U_t | S_t = s] = v_{\pi}(S_t), \forall t$, then $\bm{w}_t$ is guaranteed to converge to a local optimum under the usual SGD conditions with decreasing $\alpha$. One simplest instance of this kind of method is to use the MC returns as the update targets, which leads to the gradient-MC method.
+
+Having discussed the inefficiencies of using MC returns as the value estimation update targets, we naturally turn to the possibility of combining TD methods with function approximation. Unfortunately, despite TD's convergence in the tabular case, TD always employs biased targets, because TD update targets are constructed by  bootstrapping existing value estimates. Combined with the requirements from gradient descent, this implies that TD methods will not produce a true gradient method. Formally, it can be shown that bootstrapping methods are not in fact instances of true gradient descent \citep{barnard1993temporal}, as they take into account the effect of changing the weight $\bm{w}_t$ on the estimate ($\nabla V_{\pi}(S_t, \bm{w}_t)$ in Eq.~\ref{eq:fa_true_gradient}) but ignore its effect on the target ($\left[v_{\pi}(S_t) - V_{\pi}(S_t, \bm{w}_t)\right]$ in Eq.~\ref{eq:fa_true_gradient}).
+
+The methods that combine TD-learning and gradient-based optimization are recognized as \textit{semi-gradient} methods, because they only take into consideration a part of the gradient. Although semi-gradient bootstrapping methods do not converge as robustly as gradient methods, they have shown generally good performance in application, especially the deep RL methods using neural networks as function approximators. % Algo.~\ref{alg:SGTD0} shows the simplest instance, the semi-gradient $1$-step TD, which uses $1$-step target as the update target.
+
+% \begin{algorithm*}[htbp]
+% \caption{Semi-Gradient $1$-step TD for Policy Evaluation}
+% \label{alg:SGTD0}
+% \KwIn{$\pi$ (policy to be evaluated), $\gamma$ (discount function), $\alpha \in (0, 1]$ (learning rate), $N$ (maximum number of episodes)}
+% \KwOut{$V(s), \forall s \in \scriptS{}^{+}$ (state values for policy $\pi$)}
+% Initialize $V(s) = 0$, $\forall s \in \scriptS$\\
+
+% \For{$n \in \{1, \dots, N\}$}{
+%     Initialize $S$\\
+%     \While{$S$ is not terminal}{
+%         $A = \text{action given by} \pi(\cdot|s)$\\
+%         Take action $A$, observe $R, S'$\\
+%         $\bm{w} = \bm{w} + \alpha \left[ R + \gamma \cdot V(S'; \bm{w}) - V(S; \bm{w}) \right] \nabla_{\bm{w}} V(S; \bm{w})$\\
+%         $S = S'$
+%     }
+% }
+% \end{algorithm*}
+
+% \subsection{Linear Methods}
+
+% The simplest case of function approximation in approximate RL is with linear functions, where a value estimator $V$ is parameterized as $V(\bm{x}; \bm{w}) = \bm{w}^T\bm{x}$, a linear function of the weight vector $\bm{w}$, and $\bm{x}$ is some real-valued feature vector corresponding to some state $s$ (we employ a unifying notation based on $x$ to denote that the state representations are lossless transformations of the states, acting as the observations). The linear case brings some important properties:
+
+% First, the gradient of the parameter $\bm{w}$ has a special form that is independent of the parameter $\bm{w}$ - the gradient of the approximate value function with respect to $\bm{w}$ is $\nabla_{\bm{w}} V(s; \bm{w}) = \bm{x}(s)$. This means that a once a gradient of yielded by some feature is calculated, it remains valid forever, \ie{}, remains a true gradient. This is a special property that empowers eligibility traces, a fundamental RL method for policy evaluation that I worked on for my master thesis \citep{zhao2020eligibility}.
+
+% Second, in particular, in the linear case there is only one optimum (or, in degenerate cases, one set of equally good optima), and thus any method that is guaranteed to converge to or near a local optimum is automatically guaranteed to converge to or near the global optimum.
+
+% Note that, as previously discussed, the convergence of linear semi-gradient $1$-step TD algorithm presented in Algo.~\ref{alg:SGTD0} does not follow from general results on SGD, but a separate theorem \citep{sutton2018reinforcement}. % The weight vector converged to is also not the optimum, but rather a point nearby. The update for linear semi-gradient TD(0) is
+
+% % \begin{equation}
+% % \nonumber
+% % \begin{aligned}
+% % \bm{w}_{t+1} & = \bm{w}_{t} + \alpha (R_{t+1} + \gamma(\bm{x}_{t+1}) \bm{w}_t^T \bm{x}_{t+1} - \bm{w}_{t}^T \bm{x}_{t}) \bm{x}_t\\
+% % & = \bm{w}_{t} + \alpha (R_{t+1}\bm{x}_t - \bm{x}_t(\bm{x}_t - \gamma(\bm{x}_{t+1})\bm{x}_{t+1})^T \bm{w}_t)
+% % \end{aligned}
+% % \end{equation}
+% % where $\bm{x}_t \equiv \bm{x}(S_t)$.
+
+% If we use onehot encoding for tabular states, which is to use a binary vector with length $|\scriptS|$ and mark only the corresponding state with $1$, we can see that the convergence of tabular $1$-step TD is a special instance of that of semi-gradient $1$-step TD.
+
+\subsection{Off-policy Methods with Function Approximation}
+
+When learning off-policy with function approximation, new troubles emerge for semi-gradient methods. First, the update targets may need to be fixed with importance sampling ratios, depending on if a Q-value estimator is used; Second and most importantly, the state distribution will no longer match the target policy. % This means that the cumulative effect of gradient or semi-gradient updates does not necessarily optimize the overall value error.
+
+Let us first look into why off-policy learning is more difficult with function approximation compared to the tabular case. With function approximation, value estimation becomes dependent on state representations. Thus, the updates for one state could affect multiple states with similar representations, whereas in the tabular case, the updates for one state have no influence on others. This means that, in the off-policy case, the tabular updates do not have to care about the state-frequencies when doing updates as long as the update targets are fixed using the importance sampling ratios. The blessing that the tabular case updates do not rely on any special distribution for stability has not been passed to the function approximation cases. In the function approximation case, the semi-gradient methods that we have introduced before rely on the state-frequencies for updates. This means we either have to ``reweight'' the updates, \ie{}, to warp the update distribution back to the on-policy distribution using importance sampling methods, or we have to develop true gradient methods that do not rely on any special distribution for stability, which are not yet available for non-linear function approximators such as neural networks \citep{zhao2020meta}. In fact, the problem of the coexistence of bootstrapping, off-policy learning and function approximation is so troublesome that it is considered as ``the deadly triad'', which is known for the resulting divergent value estimations \citep{sutton2018reinforcement}.
+
+% Here, we focus on the gradient methods.
+
+% \subsubsection{Gradient Methods for Linear Case}
+
+
+% \begin{coloreddefinition}{Bellman Error}{bellmanerror}
+% Given an MDP with its dynamics $p$, a policy $\pi$ and discount function $\gamma$, let the corresponding Bellman operator be $\scriptB_{\pi}$, the \textit{Bellman Error (BE)} for a value estimate $V_{\bm{w}}$ is defined as the norm of the \textit{Bellman Error vector}, \ie{}, the expected TD error vector, induced by the state-frequencies $d_{\pi}$.
+% \begin{equation}
+% \overline{\text{BE}}(\bm{w}) \equiv \| \overline{\bm{\delta}}_{\bm{w}} \|_{d_\pi}^2 \equiv \| D_{\pi}^{1/2} \cdot \overline{\bm{\delta}}_{\bm{w}} \|_2^2
+% % = \| \Pi \overline{\bm{\delta}}_{\bm{w}} \|_{d_\pi}^2
+% \end{equation}
+% where $D_\pi$ is the diagonalized $\bm{d}_\pi$ and the BE vector $\overline{\bm{\delta}}_{\bm{w}}$ is defined as:
+% \begin{equation}\label{eq:bellman_error}
+% \overline{\bm{\delta}}_{\bm{w}} \equiv \scriptB_{\pi}V_{\bm{w}} - V_{\bm{w}}
+% \end{equation}
+% \end{coloreddefinition}
+
+% It has been proved that, unfortunately, true gradient methods optimizing the Bellman error, named \textit{residual methods}, cannot be realized for general RL settings unless the environment transitions are deterministic or if the transitions of the environment can be somehow reversed. Also, geometric analyses in the linear case show that the minimizers of the Bellman error may not be desirable. These lead to the gradient methods seeking to optimize the Mean Squared Projected Bellman Error (MSPBE).
+
+% \begin{coloreddefinition}{Projected \& Mean Squared Bellman Error}{proj_MS_bellmanerror}
+% Given an MDP, target policy $\pi$ and a parameterized value estimate $\bm{V}_{\bm{w}}$, the \textit{Mean Squared Projected Bellman Error (MSPBE)} is defined as the norm of the \textit{Projected Bellman Error vector (PBE)}, induced by the state-frequencies $d_\pi$. 
+% \begin{equation}
+% \overline{\text{PBE}}(\bm{w}) \equiv \| \hat{\bm{\delta}}_{\bm{w}} \|_{d_\pi}^2 \equiv \| D_{\pi}^{1/2} \cdot \hat{\bm{\delta}}_{\bm{w}} \|_2^2
+% % = \| \Pi \overline{\bm{\delta}}_{\bm{w}} \|_{d_\pi}^2
+% \end{equation}
+% where $D_\pi$ is the diagonalized $\bm{d}_\pi$ and the PBE vector $\hat{\bm{\delta}}_{\bm{w}}$ is defined as:
+% $$\hat{\bm{\delta}}_{\bm{w}} \equiv \Pi \overline{\bm{\delta}}_{\bm{w}}$$
+% where $\overline{\bm{\delta}}_{\bm{w}}$ is the Bellman error vector of $\bm{V}_{\bm{w}}$ and $\Pi$ is the projection operator that takes an arbitrary value function $\bm{V}'$ to the representable function that is closest in the weighted norm, which is:
+% $$\Pi \bm{V}' \equiv \bm{V}_{\bm{w}'} \text{ and } \bm{w}' = \argmin_{\bm{w}}{\|\bm{V}' - \bm{V}_{\bm{w}}\|_{d_\pi}^2}$$
+% \end{coloreddefinition}
+
+% In the linear case, given a fixed state-to-feature mapping and a fixed policy $\pi$, the projection operator is a static linear transformation which does not depend on the parameter $\bm{w}$. This gives birth to the linear gradient-TD methods which achieve convergence by minimizing MSPBE under some conditions. In this thesis, we propose an assistive method for general function approximation based policy evaluation, but test on these linear methods with the back of the convergence guarantees.
+
+% For a given MDP, the update targets of different steps, \eg{} $1$-step target, $2$-step target, \etc{}, yield different biases and variances, which lead to different qualities of the estimates. Naturally, one would like to combine them in a way \st{} we get better estimates, \eg{} with lower MSE towards the tru value, and without losing the properties of convergence. The following fact unlocks such possibility.
+
+% \begin{coloredfact}{Compound Targets \& Compound Updates}{compoundtargets}
+% Given an MDP and appropriate learning rate, using convex combinations of multi-step returns as update targets for policy evaluation achieves convergence to fixed-points near the true value.
+% \end{coloredfact}
+
+% Often, these targets are recognized as \textit{compound targets}. The updates using compound targets are called \textit{compound updates}. The convergence of compound updates relies on the fact that compound targets are composed of multi-step updates, and each of them has convergence guarantees.
+
+% There are potentially many ways to mix the multi-step targets to achieve compound updates. Optimizing on the way of mixing should be beneficial for the sample efficiency of policy evaluation. \red{here we can cite the lambda returns quickly}
+
+
+% \section{Policy Gradient Methods}\label{sec:policy_gradient}
+% Just like the value estimates, policies can also make use of the power of generalization by parameterization. In this section, we introduce the ways of dealing with parameterized policies that selects actions, independent of the value estimates\footnote{We focus on the type of parameterized policies disentangled from the value estimates.}.
+
+% We can use the notation $\bm{\theta}$ for the policy's parameter vector. Thus we write $\pi(a|s; \bm{\theta}) = \doubleP\{ A_t = a | S_t = s, \bm{\theta}_t = \bm{\theta} \}$ for the probability that action $a$ is taken at time $t$ given that the environment is in state $s$ at time $t$ with parameter $\bm{\theta}$. 
+
+% We seek to maximize the value function of the starting states by optimizing $\bm{\theta}$. The representative method is to conduct gradient ascent, whose performance is guaranteed by the following:
+
+% \begin{theorem}[Episodic Discounted Policy Gradient]
+% Given a policy $\pi(\cdot; \bm{\theta})$, let the true state-action value function be $q_\pi(\cdot)$, the true state value function be $v_\pi(\cdot)$, the starting state distribution be $p_0$ and the state distribution be $d_\pi$. The gradient of $v_\pi(\cdot)$ \wrt{} $\bm{\theta}$ satisfies:
+% \begin{equation}
+% \begin{aligned}
+% \bm{\nabla} v_\pi(s_0) &\propto \sum_{s}{ d_\pi(s) \cdot \gamma(s_0 \to s, \pi) \cdot  \sum_{a}{\left(q_\pi(s, a) - h(s)) \bm{\nabla} \pi(a|s; \bm{\theta} \right)} }%\\
+% %&= \sum_{s \sim \pi}{\gamma_{acc} \cdot  \sum_{a}{\left(q_\pi(s, a) - h(s)) \bm{\nabla} \pi(a|s; \bm{\theta} \right)}}
+% \end{aligned}
+% \end{equation}
+% where $s_0 \sim p_0$, $s \sim d_\pi$, $h: \scriptS \to \doubleR$ is any random variable that is not dependent on $a$ and $\gamma(s_0 \to s, \pi)$ is the expected cumulative product of discount factors transitioning from $s_0$ to $s$, specifically:
+% $$\gamma(s_0 \to s, \pi) \equiv \doubleE_{\tau \sim \pi} \left[ {{\sum_{k=0}^{\infty}{\doubleP\{ s_0 \xrightarrow{\tau} s , k, \pi \} \left(\prod_{y=s_1}^{s}{\gamma(y)}\right)} }} \right]$$
+% where $\tau$ is a trajectory sampled with $\pi$, $\doubleP\{ s \xrightarrow{\tau} x , k, \pi \}$ is the probability of transitioning according to trajectory $\tau$ from state $s$ to state $x$ in exactly $k$ steps under policy $\pi$ and $\prod_{y=s_1}^{s}{\gamma(y)}$ is the cumulative product of discount factors following the trajectory $\tau$ along $s_0, s_1, s_2, \dots, s_{k-1}, s$.
+% \end{theorem}
+
+% \begin{proof}
+% The gradient of $v_\pi$ can be written in terms of $q_\pi$ as
+% \begin{equation}
+% \begin{aligned}
+% \bm{\nabla} v_\pi (s) & = \bm{\nabla} \left[ \sum_{a}{\pi(a|s)q_\pi(s,a)} \right], \forall s \in \scriptS{}\\
+% & = \sum_{a}{\left[ q_\pi(s, a) \bm{\nabla} \pi(a|s) + \pi(a|s) \bm{\nabla} q_\pi(s, a) \right]}\\
+% & = \sum_{a}{\left[ q_\pi(s, a) \bm{\nabla} \pi(a|s) + \pi(a|s) \bm{\nabla} \sum_{s',r}{p(s',r|s,a)(r + \gamma v_\pi(s'))} \right]}\\
+% & = \sum_{a}{\left[ q_\pi(s, a) \bm{\nabla} \pi(a|s) + \pi(a|s) \sum_{s',r}{p(s',r|s,a)\gamma \bm{\nabla} v_\pi(s')} \right]}\\
+% & = \cdots \text{(keep unrolling $\bm{\nabla} v_\pi(\cdot)$)}\\
+% & = \sum_{x \in \scriptS{}}{\sum_{\tau \sim \pi}{\sum_{k=0}^{\infty}{ \left[ \doubleP\{ s \xrightarrow{\tau} x , k, \pi \} \cdot \left(\prod_{y=s'}^{x}{\gamma(y)}\right) \cdot \sum_{a}{ \bm{\nabla} \pi (a | x) q_\pi (x, a) } \right]}}}
+% \end{aligned}
+% \end{equation}
+% The value of the initial state is what we care about, thus
+% \begin{equation} % P347
+% \begin{aligned}
+% & \bm{\nabla}v_\pi (s_0)\\
+% & = \sum_{s}{ (\sum_{\tau \sim \pi}{{\sum_{k=0}^{\infty}{\doubleP\{ s_0 \xrightarrow{\tau} s , k, \pi \} \left(\prod_{y=s_1}^{s}{\gamma(y)}\right)} }}) \sum_{a}{q_\pi(s,a) \cdot \left(\prod_{y=s_1}^{s}{\gamma(y)}\right) \cdot \bm{\nabla} \pi(a|s) } }\\
+% & = \sum_{s}{ \eta_\pi(s) \sum_{a}{q_\pi(s,a) \cdot \gamma(s_0 \to s, \pi) \cdot \bm{\nabla} \pi(a|s) } }\\
+% & \text{$\eta_\pi(s)$ is the expected number of visits to state $s$ under $\pi$}\\
+% & \propto \sum_{s}{ d_\pi(s) \sum_{a}{q_\pi(s,a) \gamma(s_0 \to s, \pi) \cdot \bm{\nabla} \pi(a|s) } }% = \doubleE_{\pi}\left[ \sum_{a}{q_\pi(S_t, a) \bm{\nabla} \pi(a|S_t; \bm{\theta}) } \right]
+% \end{aligned}
+% \end{equation}
+% We notice that:
+% \begin{equation}
+% \begin{aligned}
+% 0 & = \bm{\nabla}1\\
+% & = \bm{\nabla} \sum_{a}{\pi(a | s)}\\
+% & = h(\cdot) \bm{\nabla} \sum_{a}{\pi(a | s)}\\
+% & = \sum_{a}{h(\cdot) \bm{\nabla} \pi(a | s)} &&\text{as long as $h$ has nothing to do with $a$}
+% \end{aligned}
+% \end{equation}
+% Thus,
+% \begin{equation}
+% \begin{aligned}
+% \bm{\nabla}v_\pi (s_0) & = \bm{\nabla}v_\pi (s_0) + 0\\
+% & \propto \sum_{s}{ d_\pi(s) \cdot \gamma(s_0 \to s, \pi) \cdot \sum_{a}{q_\pi(s,a) \bm{\nabla} \pi(a|s) } }  + \sum_{a}{h(\cdot) \bm{\nabla} \pi(a | s)}\\
+% & \propto \sum_{s}{ d_\pi(s) \cdot \gamma(s_0 \to s, \pi) \cdot \sum_{a}{\left(q_\pi(s,a) - h(s)\right) \bm{\nabla} \pi(a|s) } }
+% \end{aligned}
+% \end{equation}
+
+% \end{proof}
+
+% When learning online, it is desirable, instead of to sum over $a$, use $A_t$ to do a stochastic update.
+% \begin{equation}\label{eq:online_pg}
+% \begin{aligned}
+% & \bm{\nabla}v_\pi (s_0)\\
+% & = \doubleE_{\pi}\left[\gamma(s_0 \to s, \pi) \cdot\sum_{a}{q_\pi(S_t, a) \bm{\nabla} \pi(a|S_t; \bm{\theta}) } \right]\\
+% & = \doubleE_{\pi}\left[\prod_{X = S_1}^{S_t}{\gamma(X)} \cdot \sum_{a}{\pi(a|S_t; \bm{\theta}) \cdot q_\pi(S_t, a) \cdot \frac{\bm{\nabla} \pi(a|S_t; \bm{\theta})}{\pi(a|S_t; \bm{\theta})} } \right]\\
+% & = \doubleE_{\pi}\left[\prod_{X = S_1}^{S_t}{\gamma(X)} \cdot q_\pi(S_t, a) \cdot \frac{\bm{\nabla} \pi(a|S_t; \bm{\theta})}{\pi(a|S_t; \bm{\theta})} \right]\\
+% & = \doubleE_{\pi}\left[\prod_{X = S_1}^{S_t}{\gamma(X)} \cdot q_\pi(S_t, A_t) \cdot \frac{\bm{\nabla} \pi(A_t|S_t; \bm{\theta})}{\pi(A_t|S_t; \bm{\theta})} \right] &&\text{$\doubleE_\pi[A_t]=a$}\\
+% & = \doubleE_{\pi}\left[\prod_{X = S_1}^{S_t}{\gamma(X)} \cdot U_t \cdot \frac{\bm{\nabla} \pi(A_t|S_t; \bm{\theta})}{\pi(A_t|S_t; \bm{\theta})} \right] &&\text{as long as $\doubleE_\pi[U_t|S_t, A_t]=q_\pi(S_t, A_t)$}
+% \end{aligned}
+% \end{equation}
+
+% We realize that the corresponding online update rule of the policy gradient theorem has the same problem as that of the gradient of values (\ref{eq:fa_true_gradient}) - $q_\pi(\cdot)$ is unknown and must be replaced with an estimator. 
+
+
+
+% % With this observation we can see
+
+% % $$ \nabla v_\pi(s_0) \propto \sum_{s}{ d_\pi(s)\sum_{a}{(q_\pi(s,a)-h(s))\bm{\nabla}\pi(a|s; \bm{\theta})}  } = \doubleE_{\pi}\left[ (q_\pi(s,a)-h(s)) \frac{\bm{\nabla} \pi(A_t|S_t; \bm{\theta})}{\pi(A_t|S_t; \bm{\theta})} \right]$$
+
+% $h$, either a function or a random variable, is recognized as a \textit{baseline}. In general, the baseline leaves the expected value of the gradient unchanged, yet having significant effect on its variance. The possibility of variance reduction is enabled by the idea recognized as \textit{control variates}. One popular choice of the baseline is an estimate of the state value $V$. Replacing $q_\pi(s,a)-h(s)$ with $G-V(s)$, where $G$ is the MC return estimator, then we will arrive at the simplest policy gradient method, which is named \textit{REINFORCE}. However, its details will not be discussed since they are not related to the contribution of this thesis.
+
+% \subsection{Actor-Critic}
+% Enabling bootstrapping in policy gradient methods is crucial, since the bias introduced through bootstrapping reduces the variance and boosts sample efficiency (makes learning faster and more accuracy). REINFORCE with baseline is unbiased and will converge asymptotically to a local minimum, but since it has no bootstrapping and updates only upon a high-variance target (MC return), it is problematic for online learning. Actor-Critic methods eliminate these inconveniences with TD and through the mixing of multi-step targets, we can flexibly determine the degree of bootstrapping.
+
+% The first and simplest instance of these methods is the $1$-step actor-critic method, which is fully online and incremental, yet avoid the complexities of eligibility traces. Replacing the target $U_t$ in (\ref{eq:online_pg}) with $1$-step target $R_{t+1} + \gamma V(S_{t+1})$, we have it as follows:
+
+% \begin{equation}
+% \begin{aligned}
+% \bm{\theta}_{t+1} & = \bm{\theta}_{t} + \alpha \left( G_{t:t+1} - V(S_t, \bm{w}) \right) \frac{\bm{\nabla} \pi(A_t | S_t, \bm{\theta}_t)}{\pi(A_t | S_t, \bm{\theta}_t)}\\
+% & = \bm{\theta}_{t} + \alpha \left( R_{t+1} + \gamma V(S_{t+1}, \bm{w}) - V(S_t, \bm{w}) \right) \frac{\bm{\nabla} \pi(A_t | S_t, \bm{\theta}_t)}{\pi(A_t | S_t, \bm{\theta}_t)}
+% \end{aligned}
+% \end{equation}
+
+% With this, we have the $1$-step Actor-Critic method for episodic tasks, as presented in Algo.~\ref{alg:AC_0}.
+
+% \begin{algorithm*}[htbp]
+% \caption{Episodic $1$-step Actor-Critic for estimating $\pi_{*}$}
+% \label{alg:AC_0}
+% \KwIn{$\pi(a|s; \bm{\theta})$ (differentiable policy parameterization), $V(s; \bm{\theta})$ (differentiable state-value estimate parameterization), $\gamma$ (discount function), $\alpha_{\bm{\theta}}, \alpha_{\bm{w}}$ (learning rates for actor and critic, respectively), $N$ (maximum number of episodes)}
+% \KwOut{$\pi \approx \pi_{*}$ (an estimate of the optimal policy), $V(s), \forall s \in \scriptS{}^{+}$ (estimated state-values for policy $\pi_{*}$)}
+
+% Initialize weights $\bm{\theta}$ and $\bm{w}$, \eg{} to $\bm{0}$\\
+% \For{$n \in \{1, \dots, N\}$}{
+%     Initialize $S$ \textcolor{darkgreen}{// first state of episode}\\
+%     $I = 1$ \textcolor{darkgreen}{// cumulative product of discount factors}\\
+%     \While{$S$ is not terminal}{
+%         $A \sim \pi(\cdot | S, \bm{\theta})$\\
+%         Take action $A$, observe $R, S'$\\
+%         $\delta = R + \gamma V(S'; \bm{w}) - V(S; \bm{w})$ \textcolor{darkgreen}{// TD error, $V(S'; \bm{w}) \equiv 0$ if $S'$ is terminal}\\
+%         $\bm{w} = \bm{w} + \alpha_{\bm{w}} \delta \cdot \bm{\nabla}_{\bm{w}} V(S; \bm{w})$\textcolor{darkgreen}{// $1$-step semi-gradient TD update for critic}\\
+%         $\bm{\theta} = \bm{\theta} + \alpha_{\bm{\theta}} I \delta \cdot \bm{\nabla}_{\bm{\theta}} ln(\pi(A|S; \bm{\theta}))$\textcolor{darkgreen}{// $1$-step update for actor}\\
+%         $I = I \cdot \gamma $\\
+%         $S = S'$
+%     }
+% }
+% \end{algorithm*}
+
+% The generalizations to the forward view of $n$-step methods and then to a $\lambda$-return algorithm are straightforward. The episodic Actor-Critic method with eligibility traces is presented as follows, in Algo.~\ref{alg:AC_lambda}.
+
+% \begin{algorithm*}[htbp]
+% \caption{Episodic Actor-Critic with Eligibility Traces for estimating $\pi_{*}$}
+% \label{alg:AC_lambda}
+% \KwIn{$\pi(a|s; \bm{\theta})$ (differentiable policy parameterization), $V(s; \bm{\theta})$ (differentiable state-value estimate parameterization), $\gamma$ (discount function), $\alpha_{\bm{\theta}}, \alpha_{\bm{w}}$ (learning rates for actor and critic, respectively), $\lambda_{\bm{\theta}}, \lambda_{\bm{w}}$ (trace-decay functions for actor and critic, respectively), $N$ (maximum number of episodes)}
+% \KwOut{$\pi \approx \pi_{*}$ (an estimate of the optimal policy), $V(s), \forall s \in \scriptS{}^{+}$ (estimated state-values for policy $\pi_{*}$)}
+
+% Initialize weights $\bm{\theta}$ and $\bm{w}$, \eg{} to $\bm{0}$\\
+% \For{$n \in \{1, \dots, N\}$}{
+%     Initialize $S$ \textcolor{darkgreen}{// first state of episode}\\
+%     $I = 1$ \textcolor{darkgreen}{// cumulative product of discount factors}\\
+%     $\bm{z}_{\bm{\theta}} = \bm{0}$ \textcolor{darkgreen}{// eligibility trace for $\bm{\theta}$}\\
+%     $\bm{z}_{\bm{w}} = \bm{0}$ \textcolor{darkgreen}{// eligibility trace for $\bm{w}$}\\
+%     \While{$S$ is not terminal}{
+%         $A \sim \pi(\cdot | S, \bm{\theta})$\\
+%         Take action $A$, observe $R, S'$\\
+%         $\delta = R + \gamma V(S'; \bm{w}) - V(S; \bm{w})$ \textcolor{darkgreen}{// TD error, $V(S'; \bm{w}) \equiv 0$ if $S'$ is terminal}\\
+%         $\bm{z}_{\bm{w}} = \gamma(S)\lambda_{\bm{w}}(S)\bm{z}_{\bm{w}} + \bm{\nabla}_{\bm{w}} V(S, \bm{w})$\textcolor{darkgreen}{// accumulating traces for $\bm{z}_{\bm{w}}$}\\
+%         $\bm{z}_{\bm{\theta}} = \gamma(S)\lambda_{\bm{\theta}}(S)\bm{z}_{\bm{\theta}} + I \cdot \bm{\nabla}_{\bm{\theta}} ln(\pi(A|S; \bm{\theta}))$\textcolor{darkgreen}{// accumulating traces for $\bm{z}_{\bm{\theta}}$}\\
+%         $\bm{w} = \bm{w} + \alpha_{\bm{w}} \delta \cdot \bm{z}_{\bm{w}}$\\
+%         $\bm{\theta} = \bm{\theta} + \alpha_{\bm{\theta}} \delta \cdot \bm{z}_{\bm{\theta}}$\\
+%         $I = I \cdot \gamma $\\
+%         $S = S'$
+%     }
+% }
+% \end{algorithm*}
+
+
+\section{Temporal Abstraction}
+As discussed, the RL formulation of sequential decision-making relies on a one-step state transition model (decisions are made at the most atomic timesteps), where the action taken at timestep $t$ impacts the state and the immediate reward at $t + 1$. This prompts RL methods to overwhelmingly learn to directly work on these finest-grain courses of action. 
+
+However, to be able to efficiently and effectively reason longer-term in the face of novelty, an agent must have the ability to utilize and behave, according to different appropriate timescales \citep{sutton2018reinforcement}. This is because an agent can learn more effectively if uninteresting details are abstracted away, and focus its computations on important decision timings. This is coupled with the fact that some predictions about the environment are counterintuitively more difficult in the finer timescales than the more coarse, where in the latter case, unnecessary details may be in a way effectively marginalized. This, together with the fact that the accumulation of errors by imperfect models during multistep planning, motivate the learning for temporal abstractions in the framework of RL, \eg{} options.
+
+Learning temporal abstractions is a longstanding problem and existing methods cover a variety of approaches, \eg{} discovering partially defined policies skills \citep{thrun1994finding}, learning more and more complex behaviors using temporal-transition hierarchies \citep{ring1997child}, a feudal approach where high level managers learn to allocate tasks to their sub-managers, which in turn learn how to satisfy them \citep{dayan1992feudal}, a framework to consider the augmented MDP but also the underlying MDP in a seamless fashion \citep{sutton1999between}, \etc{}. 
+
+We lay the foundations of temporal abstractions including options and options models, discuss the discovery problem, then review both model-based (planning with option models) and model-free (option discovery) algorithms relevant to the contributions of this thesis.
+
+\subsection{Semi-Markov Decision Processes (SMDPs)}
+\label{sec:SMDP}
+
+A Semi-Markov Decision Process (SMDP) provides a foundation for temporal abstractions, where, compared to MDPs, the amount of time between two decision points can vary \citep{puterman2014markov}. In SMDPs, the transition functions $\doubleP\{S^\tau = s' | S^0 = s, \pi_i\}$ are defined additionally over a \textit{transition time} $\tau$, for an agent to enter a next interesting state $s'$ from $s$. 
+
+\phantomsection
+\label{sec:macro_actions}
+
+Building upon SMDPs, we can replace the action spaces with ``macro'' actions induced by different policies, abstracting the decision-making process, which leads to the options framework. These macro actions can also be nested, \ie{}, consisted of a sequence of other macro actions, naturally resulting in a potential of hierarchies corresponding to different timescales. The aim of hierarchical RL is to find closed-loop policies at several levels of abstraction, also known as temporally-extended actions. Discovering useful and reusable temporally extended actions are core to temporal abstraction.
+
+Instead of primitive actions, let us consider an agent with a set of policies to choose from at each decision-time, \ie{}, the action space is replaced with a set of policies. Let the cumulative discounted reward under $\pi_i$ be $R_{s}^{\pi_i}$. Considering the case, where the decision time for actions are only at discrete events, we have:
+
+\begin{coloredfact}{Bellman Optimality Equations for SMDP}{smdpbellman}
+\begin{equation}\label{eq:bellman_operator_SMDP_V}
+V^*(s) = \max_{\pi_i}{\left[ R_{s}^{\pi_i} + \sum_{\tau=1}^{\infty}{\gamma^{\tau - 1}\cdot \sum_{s'}{\doubleP\{S^\tau = s' | S^0 = s, \pi_i\} V^*(s')}}   \right]}
+\end{equation}
+
+\begin{equation}\label{eq:bellman_operator_SMDP_Q}
+Q^*(s,\pi_i) = R_{s}^{\pi_i} + \sum_{\tau=1}^{\infty}{\gamma^{\tau - 1}\cdot \sum_{s'}{\doubleP\{S^\tau = s' | S^0 = s, \pi_i\} \max_{\pi_{i}^{'}}{Q^*(s',\pi_{i}^{'})}}}
+\end{equation}
+\end{coloredfact}
+
+The equations above form sequences of actions defined over macro-actions. A sequence of actions forming a ``macro'' is one of the simplest kinds of abstraction. A macro can also be obtained as a sequence of other macros, which naturally results in a hierarchy in architecture. The equations indicate the potential of using macro-actions in sequential decision-making problems, giving rise to option-based frameworks. 
+
+% Planning with options requires \textit{option models}, \ie{}, the models of the options' consequences \citep{sutton1999between}.
+\subsection{Options: SMDPs with Policies as Macro Actions}
+\label{sec:options}
+Temporally extended actions are usually defined over a subset of the state space, with the primary aim to reduce the number of steps needed for the agent to solve a task. It serves as motivation to learn abstractions, which are partial solutions to a task that could be reused for other tasks.
+
+Options are a way to achieve temporal abstraction in RL, \ie{}, finding useful action sequences that span over multiple decision intervals \citep{sutton1999between}. The usefulness of these options can be evaluated by their robustness, re-usability, \etc{}. The appeal of options is that they are in some ways interchangeable with actions. Temporal abstraction allows agents to use sub-policies, and to model the environment over extended time scales, to achieve both better generalization and the divide and conquer of larger problems.
+
+Each option comprises a way of behaving (a policy) and a way of stopping. Formally, for any set of options defined on any MDP, the decision process that selects only among those options, executing each to termination, is a SMDP \citep{puterman2014markov}. An SMDP consists of 1) a set of states $\scriptS$, 2) a set of options $\mathcal{O}$, 3) for each pair of state and option, an expected cumulative discounted reward, and (4) a well-defined joint distribution of the next state and transit time \citep{bacon2017option}. Naturally, options give rise to option-associated dynamic functions, value functions, Bellman optimality equations, \etc{}
+
+\citet{sutton1999between} demonstrated the empirical potential to plan and learn at multiple time scales in the options framework, indicating options' effectiveness for speeding up learning, improving robustness and generalization abilities, \etc{}. However, the original experiments in \citet{sutton1999between} required the designer to use prior knowledge about the task to add pre-defined options, either providing the option-specific reward functions, or providing complete option policies.
+
+This raises the critical question of where the options should come from, giving rise to the \textbf{option discovery} problem. Besides principled approaches such as option-critic \citep{bacon2017option}, common approaches to option discovery involve posing subsidiary tasks such as reaching a bottleneck state or maximizing the cumulative sum of a sensory signal other than reward. Given such subtasks, the agent can develop temporally abstract structure for its cognition by following a standard progression in which each subtask is solved to produce an option, the option’s consequences are learned to produce a model, and the model is used in planning. Interestingly, option discovery problems can be bypassed to a certain degree, as what my collaborators and I have done for Chap.~\ref{cha:skipper} with goal-conditioned planning.
+
+Just as we can model the consequences of primitive actions and plan accordingly, so we can learn and plan with models of options’ effects. However, this will not be as straight forward as operating on primitive actions. I will expand on this point in the next chapter.
+
+\subsection{Goal Conditioned RL \& Options}
+
+Notably, goal-conditioned RL seeks to train agents to achieve a goal or a sequence of goals, and hence can be viewed as a formulation of instantiating option learning whose policies are shaped towards achieving certain outcomes \citep{sutton2023reward}.
+
+In some sequential decision-making problems, what matters is the achievement of certain goals instead of the maximization of returns. Researchers have thus tried to design reward functions that would align with the objectives of the problems. However, this remains an open-problem since the alignment can be non-trivial to establish, \ie{}, maximizing the accumulation of the designed rewards often do not lead to the achievement of the important goals.
+
+In Chap.~\ref{cha:skipper}, we will focus on goal-conditioned options, where the initiation set covers the whole state space $\scriptS$. Each such option is a tuple $o = \langle \pi, \beta \rangle$, where $\pi: \scriptS \to \text{Dist}(\scriptA)$ is the (intra-)option policy and $\beta: \scriptS \to \{0, 1\}$ indicates when a goal state is reached. 
+
