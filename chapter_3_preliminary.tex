@@ -88,7 +88,7 @@ Distributional RL is a useful DRL technique that enables the estimation of the \
 \begin{figure}[htbp]
 \centering
 \captionsetup{justification = centering}
-\includegraphics[width=0.6\textwidth]{figures/miscellaneous/fig_distributionals.pdf}
+\includegraphics[width=0.5\textwidth]{figures/miscellaneous/fig_distributionals.pdf}
 \caption[C51 Distributional Variant of \texorpdfstring{\DQN{}}{DQN} Value Estimators]{\textbf{C51 Distributional Variant of \DQN{} Value Estimators}: Q-value estimators output a prediction of values based on the input pair $\langle s, a \rangle$. For vanilla \DQN{}, the output is a scalar; For C51 \citep{bellemare2017distributional}, the output is similar to histograms where the bins within a certain range of support are preset. For the right side (C51), the support is set to be $\{0, 1, 2, 3, 4, 5\}$, and the outputs are \softmax{}-ed logits of the $6$-dimensional outputs from the value estimator.}
 \label{fig:distributionals}
 \end{figure}
@@ -107,7 +107,7 @@ C51 outputs a histogram-like representation of a discretized distribution over a
 
 C51 greatly alleviates the problem introduced by the difference in the magnitude of outputs, and thus agents with auxiliary learners (that learn to estimate not only the values) are less subjected to conflicts of training losses due to imbalanced magnitudes. \textbf{Auxiliary learners} are additional estimators introduced during the training, typically used to improve performance in a specific way or help the model learn more robust features. Auxiliary learners and their training signals - auxiliary losses, may not be the primary objective of the model, but are designed to assist the primary learner (the primary loss function) by providing supplementary guidance. Sometimes in RL, only the value estimator is recognized as the non-auxiliary learner, among all learners in the RL system.
 
-In this thesis, we by default used C51 distributional TD learning on all \DQN{}-based baseline and agents. That is, the estimators output histograms instead of scalars. We regress the histogram towards the targets, where these targets are skewed histograms of scalar values, towards which KL-divergence is used to train. 
+In this thesis, we by default used a variant of C51 distributional TD learning used in \citet{schrittwieser2019mastering} on all \DQN{}-based baseline and agents. That is, the estimators output histograms instead of scalars. We regress the histogram towards the targets, where these targets are skewed histograms of scalar values, towards which KL-divergence is used to train. Note that this variant of C51 does not use the full distributional estimates of the subsequent states to construct update targets that span the full support, rather, only converting the scalar update targets into two-hot histograms \citep{schrittwieser2019mastering}. The variant was preferred for its flexibility of not having to know the full distributions of the update targets, useful in planning situations.
 
 Also, in Chap.~\ref{cha:skipper}, we proposed a technique upon C51 distributional outputs, to interchangeably learn the distributions of cumulative discounts and cumulative distances simultaneously.
 
@@ -770,4 +770,4 @@ Note that, despite the focus on generalization, our experimental setting is cons
 
 
 
-\textbf{\textit{We are now finished with the introduction of the basic (previous chapter) and the more advanced knowledge (this chapter) required to understand the contributions of this thesis. The following three chapters will each feature a major effort of my PhD. Together, they satisfy the overall research expectation of my PhD research proposal.}}
+% \textbf{\textit{We are now finished with the introduction of the basic (previous chapter) and the more advanced knowledge (this chapter) required to understand the contributions of this thesis. The following three chapters will each feature a major effort of my PhD. Together, they satisfy the overall research expectation of my PhD research proposal.}}
